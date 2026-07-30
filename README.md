@@ -9,10 +9,11 @@ src/lomAtoms.ts      parsing for the atom shapes the LOM returns
 src/pattern.ts       token template evaluation + song-title parsing
 src/trackColumns.ts  Live's flat track list → grid columns + group headers
 src/gridRange.ts     block selection + active-cell movement over the columns
+src/ops.ts           building clip writes, and reversing them
 src/index.ts         barrel
 ```
 
-Run with `npm test` from the repo root. 73 tests.
+Run with `npm test` from the repo root. 86 tests.
 
 ## The one rule
 
@@ -89,6 +90,21 @@ being principled about where it was.
 `moveActive` wraps `stepCell` with the one case tests actually caught: the scene name
 column sits left of every track column but isn't one of them, so `←` from the first track
 has to land on the scene and `→` from the scene has to land back on the first track.
+
+**`ops.ts`** — the first piece of the undo story, and it's here because the whole point is
+that it's provable without Live. `inverseOps` turns a batch about to be written into the
+batch that puts it back, reading "before" out of the snapshot rather than asking Live —
+which is free, since a snapshot already holds every clip's name and color.
+
+Three exclusions carry the weight, and each is a way undo could otherwise do damage of its
+own: a cell with no clip in `before` (`apply` skipped it, so there's nothing to restore and
+a name write there would fail), a field the op never wrote (reverting an untouched color
+would be a destructive undo), and a write that changed nothing. That last one makes an
+empty result *meaningful* — it says the write had no effect to undo, not that undo failed.
+
+`colorOps` applies the same filter forward: recoloring a scene where 22 of 30 clips are
+already that color should write 8, not 30. A progress bar reporting work that isn't
+happening is a lie about cost.
 
 ## What belongs here next
 
