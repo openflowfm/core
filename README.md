@@ -8,10 +8,11 @@ src/color.ts         palette RGB → hex, luminance, ink contrast, legibility
 src/lomAtoms.ts      parsing for the atom shapes the LOM returns
 src/pattern.ts       token template evaluation + song-title parsing
 src/trackColumns.ts  Live's flat track list → grid columns + group headers
+src/gridRange.ts     block selection + active-cell movement over the columns
 src/index.ts         barrel
 ```
 
-Run with `npm test` from the repo root. 53 tests.
+Run with `npm test` from the repo root. 73 tests.
 
 ## The one rule
 
@@ -75,6 +76,19 @@ group header row, always totalling the column count so the header can't drift ou
 alignment with the grid. Only the immediate parent is shown — representing arbitrary
 nesting needs a header row per level, which the grid doesn't have. Cyclic parent links
 are guarded against rather than trusted, since a malformed one would hang the render.
+
+**`gridRange.ts`** — shift-click and arrow-key movement, which look trivial and aren't.
+Both work in *column positions*, never track indexes: a collapsed group removes its
+members from the rendered columns, so a block from track 2 to track 30 must not silently
+pick up the twenty hidden tracks in between, and `→` must step over them rather than into
+them. `cellsInBlock` yields nothing when an endpoint isn't a visible column — a block
+anchored to something you can't see isn't a block the user drew — while `stepCell` does
+the opposite and rescues a stranded position, because getting unstuck matters more than
+being principled about where it was.
+
+`moveActive` wraps `stepCell` with the one case tests actually caught: the scene name
+column sits left of every track column but isn't one of them, so `←` from the first track
+has to land on the scene and `→` from the scene has to land back on the first track.
 
 ## What belongs here next
 
