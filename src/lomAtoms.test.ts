@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseId, parseIds, parseNum, parseStr } from './lomAtoms.js';
+import { parseId, parseIds, parseNum, parseObjectRef, parseStr } from './lomAtoms.js';
 
 describe('parseIds', () => {
   it('extracts ids from the alternating atom list', () => {
@@ -18,6 +18,33 @@ describe('parseIds', () => {
 
   it('ignores a trailing "id" with no value', () => {
     expect(parseIds(['id', 4, 'id'])).toEqual([4]);
+  });
+});
+
+describe('parseObjectRef', () => {
+  it('returns the id of an occupied reference', () => {
+    expect(parseObjectRef(['id', 12])).toBe(12);
+  });
+
+  it('returns 0 for a reference that resolved but holds nothing', () => {
+    expect(parseObjectRef(['id', 0])).toBe(0);
+  });
+
+  // The whole point of this function: an unreadable cursor must not look like
+  // an empty clip slot, which is what parseId collapsing both to 0 caused.
+  it('returns -1 for a reply it cannot read, distinct from empty', () => {
+    expect(parseObjectRef(undefined)).toBe(-1);
+    expect(parseObjectRef([])).toBe(-1);
+    expect(parseObjectRef(0)).toBe(-1);
+    expect(parseObjectRef(['id'])).toBe(-1);
+    expect(parseObjectRef([12])).toBe(-1);
+    expect(parseObjectRef('id 12')).toBe(-1);
+    expect(parseObjectRef(['id', 'nope'])).toBe(-1);
+  });
+
+  it('disagrees with parseId exactly where it matters', () => {
+    expect(parseId([])).toBe(0);
+    expect(parseObjectRef([])).toBe(-1);
   });
 });
 

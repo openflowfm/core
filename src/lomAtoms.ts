@@ -27,6 +27,23 @@ export function parseId(v: unknown): number {
   return ids.length ? ids[0] : 0;
 }
 
+/**
+ * Single-object property, keeping "empty" and "unreadable" apart.
+ *
+ * `parseId` collapses both to 0, which is how a broken fast path in the slot
+ * scan could report a set full of clips as a set with none: every cursor came
+ * back unreadable and every slot therefore looked empty. Anywhere that failure
+ * would be silent, use this instead.
+ *
+ * Returns the id, `0` for a slot that resolved but holds nothing, or `-1` when
+ * the reply was not an `['id', n]` atom pair at all.
+ */
+export function parseObjectRef(v: unknown): number {
+  if (!Array.isArray(v) || v.length < 2 || v[0] !== 'id') return -1;
+  const n = Number(v[1]);
+  return Number.isFinite(n) ? n : -1;
+}
+
 /** Max atoms for a string property. Multi-word values may arrive split. */
 export function parseStr(v: unknown): string {
   if (v === undefined || v === null) return '';
