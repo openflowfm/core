@@ -57,3 +57,19 @@ export function parseNum(v: unknown): number {
   const n = Number(x);
   return Number.isFinite(n) ? n : 0;
 }
+
+/**
+ * Numeric property that Live is allowed to answer with nothing.
+ *
+ * A scene's `color_index` is documented as "Can be None for no color", and an
+ * uncolored scene must not be mistaken for one sitting on palette slot 0 —
+ * which is exactly what `parseNum` would do. Whatever atom Max hands over for
+ * None (a symbol, an empty list, nothing at all) is not a finite number, so it
+ * takes the fallback.
+ */
+export function parseNumOr(v: unknown, fallback: number): number {
+  const x = Array.isArray(v) ? (v.length ? v[0] : undefined) : v;
+  if (x === undefined || x === null || x === '') return fallback;
+  const n = Number(x);
+  return Number.isFinite(n) ? n : fallback;
+}

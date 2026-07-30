@@ -4,13 +4,14 @@ Pure domain logic. This is where the actual thinking goes, and the only module w
 meaningful unit-test coverage.
 
 ```
-src/color.ts       palette RGB → hex, luminance, ink contrast
-src/lomAtoms.ts    parsing for the atom shapes the LOM returns
-src/pattern.ts     token template evaluation + song-title parsing
-src/index.ts       barrel
+src/color.ts         palette RGB → hex, luminance, ink contrast, legibility
+src/lomAtoms.ts      parsing for the atom shapes the LOM returns
+src/pattern.ts       token template evaluation + song-title parsing
+src/trackColumns.ts  Live's flat track list → grid columns + group headers
+src/index.ts         barrel
 ```
 
-Run with `npm test` from the repo root. 26 tests.
+Run with `npm test` from the repo root. 53 tests.
 
 ## The one rule
 
@@ -46,12 +47,34 @@ import anything (`module: "none"`), and this parsing is the part of the snapshot
 most likely to be wrong, so it lives here to be testable. `parseId(['id', 0]) === 0`
 is the occupancy test the entire slot scan hinges on.
 
+Two of these exist specifically because collapsing "absent" into a valid value is how
+this module has actually gone wrong. `parseObjectRef` separates *unreadable* from
+*empty* — `parseId` reporting both as `0` is what let a broken slot scan claim a full
+set had no clips. `parseNumOr` does the same for a value Live may answer with None: a
+scene's `color_index` is documented as "Can be None for no color", and `parseNum`
+would call that palette slot 0, a real color. When a LOM read has an "absent" case,
+give it its own value rather than a plausible default.
+
 **If you change the helpers in `lom.ts`, change these too.** The duplication is a
 known cost, accepted to get the tests.
 
 **`color.ts`** — Live's palette spans near-white to near-black, so clip labels sitting
 directly on the clip color need per-swatch contrast. `inkOn()` picks dark or light ink
 by luminance.
+
+`legibleOn()` is the opposite case: a scene name *is* Live's color, painted on our
+near-black panel, and Live's palette contains colors invisible there. It blends toward
+white only as far as the contrast ratio demands, so the hue — the entire point of
+showing Live's color — survives. Pure black is the terminating case.
+
+**`trackColumns.ts`** — Live stores group membership as a parent link per track and
+allows groups inside groups, so this walks the link rather than inferring structure
+from track order. `buildColumns` drops a collapsed group's descendants at any depth
+and replaces them with one column; `headerSpans` merges consecutive columns into the
+group header row, always totalling the column count so the header can't drift out of
+alignment with the grid. Only the immediate parent is shown — representing arbitrary
+nesting needs a header row per level, which the grid doesn't have. Cyclic parent links
+are guarded against rather than trusted, since a malformed one would hang the render.
 
 ## What belongs here next
 

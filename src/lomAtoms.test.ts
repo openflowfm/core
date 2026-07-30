@@ -1,5 +1,35 @@
 import { describe, expect, it } from 'vitest';
-import { parseId, parseIds, parseNum, parseObjectRef, parseStr } from './lomAtoms.js';
+import {
+  parseId,
+  parseIds,
+  parseNum,
+  parseNumOr,
+  parseObjectRef,
+  parseStr,
+} from './lomAtoms.js';
+
+describe('parseNumOr', () => {
+  it('reads a real number', () => {
+    expect(parseNumOr([7], -1)).toBe(7);
+    expect(parseNumOr(0, -1)).toBe(0);
+  });
+
+  // A scene's color_index is documented as "Can be None for no color", and an
+  // uncolored scene must not look like one on palette slot 0.
+  it('falls back for every shape None could arrive as', () => {
+    expect(parseNumOr(undefined, -1)).toBe(-1);
+    expect(parseNumOr(null, -1)).toBe(-1);
+    expect(parseNumOr([], -1)).toBe(-1);
+    expect(parseNumOr('', -1)).toBe(-1);
+    expect(parseNumOr(['<none>'], -1)).toBe(-1);
+    expect(parseNumOr(['None'], -1)).toBe(-1);
+  });
+
+  it('disagrees with parseNum exactly where it matters', () => {
+    expect(parseNum(['<none>'])).toBe(0);
+    expect(parseNumOr(['<none>'], -1)).toBe(-1);
+  });
+});
 
 describe('parseIds', () => {
   it('extracts ids from the alternating atom list', () => {

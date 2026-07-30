@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { hex, inkOn, luminance } from './color.js';
+import { contrast, hex, inkOn, legibleOn, luminance } from './color.js';
+
+const PANEL = 0x0a0a0b; // --bg, what scene names are painted on
 
 describe('hex', () => {
   it('pads short values', () => {
@@ -19,5 +21,45 @@ describe('inkOn', () => {
   it('is monotonic with luminance', () => {
     expect(luminance(0xffffff)).toBeGreaterThan(luminance(0x808080));
     expect(luminance(0x808080)).toBeGreaterThan(luminance(0x000000));
+  });
+});
+
+describe('contrast', () => {
+  it('spans the WCAG range and is symmetric', () => {
+    expect(contrast(0xffffff, 0x000000)).toBeCloseTo(21, 5);
+    expect(contrast(0x000000, 0xffffff)).toBeCloseTo(21, 5);
+    expect(contrast(0x336699, 0x336699)).toBeCloseTo(1, 5);
+  });
+});
+
+describe('legibleOn', () => {
+  it('leaves a color that already has contrast alone', () => {
+    expect(legibleOn(0xf0b23c, PANEL)).toBe(0xf0b23c);
+  });
+
+  it('lifts a color too dark to read on the panel', () => {
+    const dark = 0x1a1a2e;
+    expect(contrast(dark, PANEL)).toBeLessThan(4.5);
+    expect(contrast(legibleOn(dark, PANEL), PANEL)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('keeps the hue recognisable rather than washing out to grey', () => {
+    // A dark saturated red must still read as red once lifted.
+    const lifted = legibleOn(0x330000, PANEL);
+    const r = (lifted >> 16) & 0xff;
+    const g = (lifted >> 8) & 0xff;
+    const b = lifted & 0xff;
+    expect(r).toBeGreaterThan(g);
+    expect(r).toBeGreaterThan(b);
+  });
+
+  it('terminates on black, the worst case', () => {
+    expect(contrast(legibleOn(0x000000, PANEL), PANEL)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('never returns a color darker than it was given', () => {
+    for (const c of [0x000000, 0x102030, 0x7f7f7f, 0xffffff]) {
+      expect(luminance(legibleOn(c, PANEL))).toBeGreaterThanOrEqual(luminance(c));
+    }
   });
 });

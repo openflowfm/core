@@ -25,3 +25,42 @@ export function luminance(rgb: number): number {
 export function inkOn(rgb: number): string {
   return luminance(rgb) > 0.45 ? '#141417' : '#f2f2f4';
 }
+
+/** WCAG contrast ratio between two colors, 1..21. */
+export function contrast(a: number, b: number): number {
+  const la = luminance(a);
+  const lb = luminance(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+/**
+ * The nearest lighter version of `rgb` that stays legible on `bg`.
+ *
+ * Clip labels sit *on* their color, so `inkOn` can just pick black or white.
+ * A scene name is the opposite case: the Live color becomes the text, on our
+ * near-black panel, and Live's palette contains colors dark enough to be
+ * invisible there. Blending toward white preserves the hue — which is the
+ * whole point of showing Live's color — while buying back contrast.
+ *
+ * Returns `rgb` unchanged when it already clears `minRatio`.
+ */
+export function legibleOn(rgb: number, bg: number, minRatio = 4.5): number {
+  if (contrast(rgb, bg) >= minRatio) return rgb;
+
+  let r = (rgb >> 16) & 0xff;
+  let g = (rgb >> 8) & 0xff;
+  let b = rgb & 0xff;
+
+  // 20 steps of 5% toward white reaches white exactly, so this terminates even
+  // for a color that can never clear the ratio (nothing can, against white).
+  for (let i = 1; i <= 20; i++) {
+    const t = i / 20;
+    const mix =
+      ((Math.round(r + (255 - r) * t) << 16) |
+        (Math.round(g + (255 - g) * t) << 8) |
+        Math.round(b + (255 - b) * t)) >>>
+      0;
+    if (contrast(mix, bg) >= minRatio) return mix;
+  }
+  return 0xffffff;
+}
