@@ -12,10 +12,11 @@ src/gridRange.ts     block selection + active-cell movement over the columns
 src/ops.ts           building clip writes, and reversing them
 src/roles.ts         scene roles: the [role] tag, and scene writes
 src/sceneTitle.ts    the rest of the scene name — {song} {bpm} {key}
+src/namePattern.ts   patterns that can be read back: format, parse, validate
 src/index.ts         barrel
 ```
 
-Run with `npm test` from the repo root. 165 tests.
+Run with `npm test` from the repo root. 195 tests.
 
 ## The one rule
 
@@ -183,6 +184,52 @@ whole set — and `LaunchTarget { kind: 'song' }` in the protocol means the tran
 overload predates this file (`pattern.ts` has a `{song}` token, the README talks about
 song segmentation), so this follows the word already in use rather than inventing a
 second one. If it's ever renamed it has to be renamed in all three places at once.
+
+**`namePattern.ts`** — the keystone of the declarative scheme (issue #1), and the
+generalisation `sceneTitle.ts` is a hand-written special case of. A pattern compiles
+into a formatter, a parser, and a verdict on whether it was safe to compile at all.
+
+**The parser is the point.** Writing names is easy; the scheme rests on being able to
+look at `Nightfall 128 Bm [chorus]` six months later and recover which song and role it
+belongs to with nothing stored on the side. That's what lets the mapping live in the set,
+need no ids, and travel with the `.als`.
+
+Two kinds of ambiguity, and **only one is fatal**:
+
+| | | |
+|---|---|---|
+| **Undecidable** | `{song} {label}` | Two free fields, whitespace between. "Glass Tunnel Arp" splits three ways and nothing says which. Rejected. |
+| **Resolvable** | `{song} {bpm?}` | "Nightfall 128" is a song called that, *or* a song at 128. Both real, one obviously meant. Allowed, under a stated rule. |
+
+The rule for the second is **a name is read as filling as many parts as it can**,
+implemented by matching the free token lazily. That's why `{song} {label}` is rejected
+where `{song} {bpm?}` isn't, and it's the distinction to keep hold of — "ambiguous"
+alone would have rejected both.
+
+Note the separator, not the count, is what makes two free tokens fatal:
+`{song} - {label}` is fine, because `" - "` says where the split is.
+
+**The probe is the validator, and that's deliberate.** Structural checks catch the
+undecidable cases and give them messages you can act on. Everything else is settled by
+*measuring*: format sample values through the pattern, parse them back, require they
+survive. So this file needs no complete theory of when a pattern is reversible — only an
+honest test — and a pattern shape nobody anticipated fails loudly at definition time
+rather than quietly at apply time.
+
+Two things follow, both load-bearing:
+
+- **Every token carries two samples**, and the second one earns its place. `{song}
+  {role}` round-trips perfectly for `Nightfall`/`chorus` and breaks for `Glass Tunnel`/
+  `post chorus` — one sample would have waved it through. That test is also the formal
+  justification for `[{role}]` having brackets at all.
+- **The probe judges reversibility, not taste.** `{song} [{role?}] {bpm}` writes
+  `Nightfall] 128` when the role is absent, which is ugly and *does* round-trip, so it's
+  allowed. A pattern its author regrets is their problem; one the app can't read back is
+  ours.
+
+`parse` returns `null` rather than a partial result. During the mapping pass `null` is
+the common and correct answer — this scene isn't named by the scheme yet — while a
+half-read name would attach a scene to the wrong song.
 
 ## What belongs here next
 

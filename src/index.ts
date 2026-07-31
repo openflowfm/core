@@ -3,3 +3,4 @@ export * from './pattern.js';
 export * from './lomAtoms.js';
 export * from './roles.js';
 export * from './sceneTitle.js';
+export * from './namePattern.js';
