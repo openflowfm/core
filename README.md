@@ -15,6 +15,7 @@ src/sceneTitle.ts    the rest of the scene name — {song} {bpm} {key}
 src/namePattern.ts   patterns that can be read back: format, parse, validate
 src/derive.ts        the set → the mapping, by reversing the pattern
 src/songRows.ts      songs → grid rows + song headers, and what folding hides
+src/sceneMove.ts     reordering scenes: the index arithmetic, so it's testable
 src/index.ts         barrel
 ```
 
@@ -127,6 +128,39 @@ on each change.
 
 An unmapped scene belongs to no song, so nothing can fold it away and leave it
 unreachable — there's a test for exactly that.
+
+**`sceneMove.ts`** — the one operation in this project that can destroy work, reduced
+to arithmetic so it can be proved without Live.
+
+Live has no scene-move call (`bridge/LOM.md`), so a move is build-then-delete: create
+blanks at the destination, `duplicate_clip_to` every occupied slot across, carry the
+scene's own properties, delete the originals. **Step one renumbers the set underneath
+you** — inserting n blanks pushes every index at or after the destination up by n — so
+the scenes you delete are not at the indexes you found them at. Get that wrong and it
+deletes the wrong scenes, and unlike a rename there is no snapshot to restore from.
+
+Three things follow:
+
+- **The plan says which scene to copy from and to, never *what* to copy.** `lom.ts`
+  reads the properties off the source object at move time, so the move carries fields
+  the snapshot doesn't even model — `time_signature_numerator` and friends — and can't
+  be caught out by a stale snapshot. Keeping the field list here would also put
+  Live-specific knowledge in `core/`, which is the one rule.
+- **Deletions are emitted descending.** Each one renumbers everything below it, so
+  highest-first means the remaining indexes are still the ones they were computed
+  against.
+- **A move that reorders nothing returns `null`, not an empty plan.** Dropping a song
+  back where it already was is how a drag usually ends, and the cheapest way to never
+  delete a scene by accident is to not run.
+
+The tests **replay** each plan against a model of the set and assert the resulting
+order, rather than asserting the plan's fields — a field assertion only proves the
+implementation matches itself. One case is exhaustive over every source run and every
+drop position in a seven-scene set, checking the result is always a permutation:
+nothing lost, nothing duplicated, no blank left unfilled.
+
+Non-contiguous sources work, which is what lets a song found in two blocks be gathered
+in one gesture.
 
 **`ops.ts`** — the first piece of the undo story, and it's here because the whole point is
 that it's provable without Live. `inverseOps` turns a batch about to be written into the

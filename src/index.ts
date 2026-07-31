@@ -6,3 +6,4 @@ export * from './sceneTitle.js';
 export * from './namePattern.js';
 export * from './derive.js';
 export * from './songRows.js';
+export * from './sceneMove.js';
