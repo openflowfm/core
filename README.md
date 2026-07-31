@@ -14,10 +14,11 @@ src/roles.ts         scene roles: the [role] tag, and scene writes
 src/sceneTitle.ts    the rest of the scene name — {song} {bpm} {key}
 src/namePattern.ts   patterns that can be read back: format, parse, validate
 src/derive.ts        the set → the mapping, by reversing the pattern
+src/songRows.ts      songs → grid rows + song headers, and what folding hides
 src/index.ts         barrel
 ```
 
-Run with `npm test` from the repo root. 218 tests.
+Run with `npm test` from the repo root. 239 tests.
 
 ## The one rule
 
@@ -87,17 +88,45 @@ nesting needs a header row per level, which the grid doesn't have. Cyclic parent
 are guarded against rather than trusted, since a malformed one would hang the render.
 
 **`gridRange.ts`** — shift-click and arrow-key movement, which look trivial and aren't.
-Both work in *column positions*, never track indexes: a collapsed group removes its
-members from the rendered columns, so a block from track 2 to track 30 must not silently
-pick up the twenty hidden tracks in between, and `→` must step over them rather than into
-them. `cellsInBlock` yields nothing when an endpoint isn't a visible column — a block
+**Both axes work in rendered positions, never in indexes.** `columns` is the visible
+track indexes, `rows` the visible scene indexes. A collapsed group removes its tracks
+from the columns and a collapsed song removes its scenes from the rows, so a block from
+track 2 to track 30 must not silently pick up the twenty hidden tracks between them — and
+a block from scene 5 to scene 90 must not pick up the folded song sitting between those.
+
+The symmetry is the point, and it isn't cosmetic: **`⌘↓` walking `rows` is what stops the
+sweep descending into scenes you can't see and firing them**, which is the one thing the
+⌘-makes-a-sound rule exists to keep predictable.
+
+`cellsInBlock` yields nothing when an endpoint isn't visible on either axis — a block
 anchored to something you can't see isn't a block the user drew — while `stepCell` does
 the opposite and rescues a stranded position, because getting unstuck matters more than
-being principled about where it was.
+being principled about where it was. Vertically it rescues to the *nearest* visible row
+in the direction of travel rather than to the end of the set, so collapsing the song
+you're sitting in feels like a fold rather than a jump.
 
 `moveActive` wraps `stepCell` with the one case tests actually caught: the scene name
 column sits left of every track column but isn't one of them, so `←` from the first track
 has to land on the scene and `→` from the scene has to land back on the first track.
+
+**`songRows.ts`** — the row-wise mirror of `trackColumns.ts`, and deliberately shaped
+like it: one folds columns into a group header, this folds rows into a song header.
+
+**A header goes above each *block*, not each song.** A song is a label rather than a
+range, so its scenes can come in several runs, and heading only the first would leave the
+second run visually attached to whatever song precedes it — the opposite of segmenting
+the grid. **Collapsing, though, is keyed by song**: folding "Nightfall" folds all of it,
+reprise included. Two blocks then show two headers, which is honest, because the set
+really does contain that song twice.
+
+Every field on `SongHeader` is a primitive, including the facts, which arrive as rendered
+strings (`128`, or `128 / 130` when the scenes disagree) rather than as the observed
+arrays. That's the same constraint `marksByScene` obeys: the header crosses into a
+memoized React row, and an object or array prop would re-render every header in the set
+on each change.
+
+An unmapped scene belongs to no song, so nothing can fold it away and leave it
+unreachable — there's a test for exactly that.
 
 **`ops.ts`** — the first piece of the undo story, and it's here because the whole point is
 that it's provable without Live. `inverseOps` turns a batch about to be written into the

@@ -5,3 +5,4 @@ export * from './roles.js';
 export * from './sceneTitle.js';
 export * from './namePattern.js';
 export * from './derive.js';
+export * from './songRows.js';
