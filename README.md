@@ -10,11 +10,12 @@ src/pattern.ts       token template evaluation + song-title parsing
 src/trackColumns.ts  Live's flat track list → grid columns + group headers
 src/gridRange.ts     block selection + active-cell movement over the columns
 src/ops.ts           building clip writes, and reversing them
-src/roles.ts         scene roles: the name convention, and scene writes
+src/roles.ts         scene roles: the [role] tag, and scene writes
+src/sceneTitle.ts    the rest of the scene name — {song} {bpm} {key}
 src/index.ts         barrel
 ```
 
-Run with `npm test` from the repo root. 131 tests.
+Run with `npm test` from the repo root. 165 tests.
 
 ## The one rule
 
@@ -39,11 +40,15 @@ If a function needs to know *how* data arrives, it belongs in `bridge/` or `ui/l
 **`pattern.ts`** — the naming half of the scheme. A pattern like
 `{bpm} {key} {label} {role}` renders to `128 Bm Arp Jam 1`. Unresolved tokens are
 dropped and whitespace collapsed, so a missing `{key}` can never write a literal
-`{key}` into a clip name and never leaves a double space. `parseSongTitle` reads the
-`{bpm} {key} {label}` convention the set already uses, returning empty fields rather
-than guessing when a title doesn't match.
+`{key}` into a clip name and never leaves a double space.
 
 This is the piece that has to be provably right before it renames thousands of clips.
+
+It used to also carry `parseSongTitle`, reading `{bpm} {key} {label}`. The scene name
+convention settled the other way round, so that was removed rather than left as a
+second contradictory answer to "how do you read a title" — see `sceneTitle.ts`, which
+is the one with callers. `{label}` remains a token you can supply a value for; nothing
+parses it back out of a name.
 
 **`lomAtoms.ts`** — deliberately duplicated from `bridge/src/lom.ts`. That file can't
 import anything (`module: "none"`), and this parsing is the part of the snapshot walk
@@ -121,8 +126,9 @@ file buys nothing. In the name, the role travels with the `.als` to the gig lapt
 visible in Live itself.
 
 **The tag is bracketed rather than a bare trailing word**, and this is the part worth
-defending. `parseSongTitle` already reads the last token as `{label}`, so `128 Bm Jam` is
-genuinely ambiguous. Worse, a bare word could only be recognised by matching against the
+defending. The title's own last token is already spoken for — it's `{key}` — so
+`Nightfall 128 Bm` versus a bare-word role is genuinely ambiguous. Worse, a bare word
+could only be recognised by matching against the
 vocabulary — so renaming a role from `jam` to `solo` would make every scene using it
 silently roleless. A tag stays visibly *there* when its name is unknown, which is the
 difference between a failure you can see and one that just loses data. `ROLE_CHARS` is
@@ -142,6 +148,41 @@ so `inverseSceneOps` drops the color revert rather than painting slot 0 over it 
 that leaves the scene a color it never had is worse than one that leaves it alone.
 `countUnrevertableColors` exists so the caller can *say* so; an undo that quietly does
 less than it claims is exactly what this module is written to avoid.
+
+**`sceneTitle.ts`** — everything in a scene name *except* the role tag:
+
+```
+Nightfall 128 Bm [chorus]
+└── song ──┘ │   └ role ┘     roles.ts owns the tag
+     │       └ key
+     └ bpm
+```
+
+Three optional parts in that order. `roles.ts` owns the tag, this owns what comes
+before it, and `titleOps` composes them — it rewrites the title and puts the scene's
+own role back on, so renaming a song across eighteen scenes doesn't disturb the roles
+you assigned them.
+
+**Parsing is anchored at the end and never guesses in the middle.** `bpm` and `key` are
+recognised only as trailing tokens of exactly the right shape, so `Arp Jam 2` keeps its
+whole title rather than having the `2` read as a tempo. The property that falls out and
+is worth relying on: **parse and format round-trip.** A title this can't decompose comes
+back byte-identical rather than rearranged, which is what makes it safe to run a patch
+over a name nobody meant to restructure. There's a test per shape for exactly that.
+
+`TitlePatch` distinguishes **absent from empty**, and that distinction is the feature:
+an omitted field is left alone on every scene, an empty string clears that part.
+Selecting two songs' worth of scenes to set one shared key must not flatten their
+different names, so "don't touch this" has to be a different thing from "make this
+blank". `commonTitle` is the other half — it reports `null` where the selection
+disagrees, so a mixed field can say so instead of picking one scene's answer and quietly
+spreading it over the rest.
+
+One naming note: **`song` here means a piece of music, not Live's `Song`**, which is the
+whole set — and `LaunchTarget { kind: 'song' }` in the protocol means the transport. The
+overload predates this file (`pattern.ts` has a `{song}` token, the README talks about
+song segmentation), so this follows the word already in use rather than inventing a
+second one. If it's ever renamed it has to be renamed in all three places at once.
 
 ## What belongs here next
 

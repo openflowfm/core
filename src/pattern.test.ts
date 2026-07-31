@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseSongTitle, render, tokensIn, unknownTokens } from './pattern.js';
+import { render, tokensIn, unknownTokens } from './pattern.js';
 
 describe('render', () => {
   it('substitutes known tokens', () => {
@@ -38,24 +38,5 @@ describe('tokensIn', () => {
 describe('unknownTokens', () => {
   it('flags tokens the UI should warn about', () => {
     expect(unknownTokens('{bpm} {wat} {role}')).toEqual(['wat']);
-  });
-});
-
-describe('parseSongTitle', () => {
-  it('parses the convention the set already uses', () => {
-    expect(parseSongTitle('128 Bm Arp')).toEqual({ bpm: 128, key: 'Bm', label: 'Arp' });
-  });
-
-  it('handles sharps and multi-word labels', () => {
-    expect(parseSongTitle('124 F#m Glass Tunnel')).toEqual({
-      bpm: 124,
-      key: 'F#m',
-      label: 'Glass Tunnel',
-    });
-  });
-
-  it('returns nothing rather than guessing on a non-conforming title', () => {
-    expect(parseSongTitle('Audio 3')).toEqual({});
-    expect(parseSongTitle('')).toEqual({});
   });
 });

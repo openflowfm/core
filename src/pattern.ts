@@ -49,17 +49,9 @@ export function render(pattern: string, values: TokenValues): string {
   return out.replace(/\s+/g, ' ').trim();
 }
 
-/**
- * Parses a song title following the `{bpm} {key} {label}` convention the set
- * already uses, e.g. "128 Bm Arp". Returns undefined fields rather than
- * guessing when the title doesn't match.
- */
-export function parseSongTitle(title: string): {
-  bpm?: number;
-  key?: string;
-  label?: string;
-} {
-  const m = /^\s*(\d{2,3})\s+([A-G][#b]?m?)\s+(.+?)\s*$/.exec(title);
-  if (!m) return {};
-  return { bpm: Number(m[1]), key: m[2], label: m[3] };
-}
+// `parseSongTitle` used to live here, reading `{bpm} {key} {label}`. The scene
+// name convention settled the other way round — `{song} {bpm} {key} [role]` —
+// so it was removed rather than left as a second, contradictory answer to
+// "how do you read a title". `sceneTitle.ts` is the one that's real, and the
+// one with callers. `{label}` stays in TOKENS as a value you can supply; there
+// is simply nothing parsing it back out of a name.
