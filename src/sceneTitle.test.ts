@@ -162,10 +162,10 @@ describe('titleOf', () => {
 });
 
 const BEFORE: SceneFields[] = [
-  { s: 0, name: 'Nightfall 128 Bm [intro]', colorIndex: -1, color: 0 },
-  { s: 1, name: 'Nightfall 128 Bm [verse]', colorIndex: 14, color: 0xff3636 },
-  { s: 2, name: 'Daybreak 92 F#m [chorus]', colorIndex: 3, color: 0xf7f47c },
-  { s: 3, name: 'Untagged scene', colorIndex: -1, color: 0 },
+  { s: 0, name: 'Nightfall 128 Bm [intro]', colorIndex: -1, color: 0, tempo: -1 },
+  { s: 1, name: 'Nightfall 128 Bm [verse]', colorIndex: 14, color: 0xff3636, tempo: -1 },
+  { s: 2, name: 'Daybreak 92 F#m [chorus]', colorIndex: 3, color: 0xf7f47c, tempo: -1 },
+  { s: 3, name: 'Untagged scene', colorIndex: -1, color: 0, tempo: -1 },
 ];
 
 describe('titleOps', () => {

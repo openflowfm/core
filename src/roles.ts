@@ -21,6 +21,8 @@
 // Pure and transport-free, like the rest of core/. Nothing here knows what a
 // palette index means to Live; colors travel through as opaque numbers.
 
+import { MIN_TEMPO } from './derive.js';
+
 /** A role in the vocabulary, and the palette slot it colors clips with. */
 export interface Role {
   /** Display form — the case actually written into scene names. */
@@ -189,6 +191,8 @@ export interface SceneFields {
   colorIndex: number;
   /** The RGB Live renders for that slot. */
   color: number;
+  /** Live's `Scene.tempo`. Below `MIN_TEMPO` means the scene has none. */
+  tempo: number;
 }
 
 export interface SceneWriteOp {
@@ -203,6 +207,13 @@ export interface SceneWriteOp {
   colorIndex?: number;
   /** The RGB for `colorIndex`. Always written together with it. */
   color?: number;
+  /**
+   * The scene's own tempo. Below `MIN_TEMPO` disables it.
+   *
+   * Unlike everything else here this is not a naming change — it changes how
+   * the set plays, since Live uses a scene's tempo the moment the scene fires.
+   */
+  tempo?: number;
 }
 
 /**
@@ -214,13 +225,20 @@ export interface SceneWriteOp {
  * ends up written to the wrong row.
  */
 export function sceneFields(
-  scenes: readonly { i: number; name: string; colorIndex: number; color: number }[],
+  scenes: readonly {
+    i: number;
+    name: string;
+    colorIndex: number;
+    color: number;
+    tempo: number;
+  }[],
 ): SceneFields[] {
   return scenes.map((sc) => ({
     s: sc.i,
     name: sc.name,
     colorIndex: sc.colorIndex,
     color: sc.color,
+    tempo: sc.tempo,
   }));
 }
 
@@ -277,6 +295,36 @@ export function sceneColorOps(
 }
 
 /**
+ * Tempo writes for `scenes`, dropping the ones that would change nothing.
+ *
+ * `bpm` below `MIN_TEMPO` — or `null` — disables the scene's own tempo, which
+ * is the way back out after turning it on. Two scenes both already disabled
+ * compare equal, so clearing an already-clear song writes nothing.
+ *
+ * **This is the one write here that changes how the set sounds.** Everything
+ * else in this module renames or recolors; a scene with its tempo enabled
+ * changes the song tempo the moment it fires. Callers should make it a
+ * deliberate action rather than a side effect of renaming.
+ */
+export function tempoOps(
+  before: readonly SceneFields[],
+  scenes: readonly number[],
+  bpm: number | null,
+): SceneWriteOp[] {
+  const at = bySceneIndex(before);
+  const want = bpm === null || bpm < MIN_TEMPO ? -1 : bpm;
+  const out: SceneWriteOp[] = [];
+  for (const s of scenes) {
+    const prev = at.get(s);
+    if (!prev) continue;
+    const has = prev.tempo >= MIN_TEMPO ? prev.tempo : -1;
+    if (has === want) continue;
+    out.push({ s, tempo: want });
+  }
+  return out;
+}
+
+/**
  * Ops that put back whatever `ops` is about to overwrite, with the same three
  * exclusions as `inverseOps` — an unknown scene, a field the op never wrote,
  * and a write that changes nothing — plus one that's specific to scenes.
@@ -313,6 +361,16 @@ export function inverseSceneOps(
       back.colorIndex = prev.colorIndex;
       back.color = prev.color;
       changed = true;
+    }
+    // Tempo reverses cleanly in both directions, unlike color: "no tempo of its
+    // own" is a state Live will accept a write for, where "no color" is not.
+    if (op.tempo !== undefined) {
+      const had = prev.tempo >= MIN_TEMPO ? prev.tempo : -1;
+      const wrote = op.tempo >= MIN_TEMPO ? op.tempo : -1;
+      if (had !== wrote) {
+        back.tempo = had;
+        changed = true;
+      }
     }
     if (changed) out.push(back);
   }

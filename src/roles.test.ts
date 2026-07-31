@@ -11,10 +11,12 @@ import {
   roleOps,
   rolesInUse,
   sceneColorOps,
+  tempoOps,
   withRole,
   type Role,
   type SceneFields,
 } from './roles.js';
+import { MIN_TEMPO } from './derive.js';
 
 describe('roleIn', () => {
   it('reads a trailing tag', () => {
@@ -178,11 +180,12 @@ describe('findRole', () => {
   });
 });
 
-// Scene 0 is uncolored (-1), scenes 1 and 2 carry real colors.
+// Scene 0 is uncolored (-1), scenes 1 and 2 carry real colors. Scene 2 is the
+// only one with a tempo of its own.
 const BEFORE: SceneFields[] = [
-  { s: 0, name: 'Nightfall 128 Bm', colorIndex: -1, color: 0x000000 },
-  { s: 1, name: 'Nightfall 128 Bm [verse]', colorIndex: 14, color: 0xff3636 },
-  { s: 2, name: 'Nightfall 128 Bm [chorus]', colorIndex: 3, color: 0xf7f47c },
+  { s: 0, name: 'Nightfall 128 Bm', colorIndex: -1, color: 0x000000, tempo: -1 },
+  { s: 1, name: 'Nightfall 128 Bm [verse]', colorIndex: 14, color: 0xff3636, tempo: -1 },
+  { s: 2, name: 'Nightfall 128 Bm [chorus]', colorIndex: 3, color: 0xf7f47c, tempo: 128 },
 ];
 
 describe('roleOps', () => {
@@ -277,6 +280,76 @@ describe('inverseSceneOps', () => {
       { s: 0, name: 'Nightfall 128 Bm' },
       { s: 1, name: 'Nightfall 128 Bm [verse]' },
       { s: 2, name: 'Nightfall 128 Bm [chorus]' },
+    ]);
+  });
+});
+
+describe('tempoOps', () => {
+  it('sets a tempo on scenes that had none', () => {
+    expect(tempoOps(BEFORE, [0, 1], 130)).toEqual([
+      { s: 0, tempo: 130 },
+      { s: 1, tempo: 130 },
+    ]);
+  });
+
+  it('drops scenes already at that tempo', () => {
+    expect(tempoOps(BEFORE, [1, 2], 128)).toEqual([{ s: 1, tempo: 128 }]);
+  });
+
+  it('clears a tempo when given null, and only where there is one to clear', () => {
+    // Scenes 0 and 1 already follow the song, so clearing them writes nothing.
+    expect(tempoOps(BEFORE, [0, 1, 2], null)).toEqual([{ s: 2, tempo: -1 }]);
+  });
+
+  it('treats anything below Live’s lower bound as "clear"', () => {
+    expect(tempoOps(BEFORE, [2], 0)).toEqual([{ s: 2, tempo: -1 }]);
+    expect(tempoOps(BEFORE, [2], MIN_TEMPO - 1)).toEqual([{ s: 2, tempo: -1 }]);
+  });
+
+  it('does not confuse Live’s -1 with gnum’s 0 when comparing', () => {
+    // A scene reading back 0 because the property was unreadable is already
+    // "no tempo", so asking to clear it writes nothing.
+    const odd: SceneFields[] = [{ ...BEFORE[0]!, tempo: 0 }];
+    expect(tempoOps(odd, [0], null)).toEqual([]);
+  });
+
+  it('skips scenes it has no "before" for', () => {
+    expect(tempoOps(BEFORE, [99], 130)).toEqual([]);
+  });
+});
+
+describe('inverseSceneOps for tempo', () => {
+  it('puts back a tempo that was overwritten', () => {
+    expect(inverseSceneOps(BEFORE, [{ s: 2, tempo: 140 }])).toEqual([
+      { s: 2, tempo: 128 },
+    ]);
+  });
+
+  it('reverses turning a tempo on, unlike color', () => {
+    // "No tempo of its own" is a state Live accepts a write for, where "no
+    // color" is not — so this revert is real where the color one is dropped.
+    expect(inverseSceneOps(BEFORE, [{ s: 0, tempo: 130 }])).toEqual([
+      { s: 0, tempo: -1 },
+    ]);
+  });
+
+  it('reverses turning a tempo off', () => {
+    expect(inverseSceneOps(BEFORE, [{ s: 2, tempo: -1 }])).toEqual([
+      { s: 2, tempo: 128 },
+    ]);
+  });
+
+  it('skips a tempo write that changes nothing', () => {
+    expect(inverseSceneOps(BEFORE, [{ s: 2, tempo: 128 }])).toEqual([]);
+    expect(inverseSceneOps(BEFORE, [{ s: 0, tempo: -1 }])).toEqual([]);
+  });
+
+  it('round-trips a whole song through set and back', () => {
+    const ops = tempoOps(BEFORE, [0, 1, 2], 140);
+    expect(inverseSceneOps(BEFORE, ops)).toEqual([
+      { s: 0, tempo: -1 },
+      { s: 1, tempo: -1 },
+      { s: 2, tempo: 128 },
     ]);
   });
 });

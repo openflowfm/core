@@ -18,7 +18,7 @@ src/songRows.ts      songs → grid rows + song headers, and what folding hides
 src/index.ts         barrel
 ```
 
-Run with `npm test` from the repo root. 239 tests.
+Run with `npm test` from the repo root. 250 tests.
 
 ## The one rule
 
@@ -179,6 +179,16 @@ so `inverseSceneOps` drops the color revert rather than painting slot 0 over it 
 that leaves the scene a color it never had is worse than one that leaves it alone.
 `countUnrevertableColors` exists so the caller can *say* so; an undo that quietly does
 less than it claims is exactly what this module is written to avoid.
+
+**`tempoOps` is the one write in here that changes how the set sounds.** Everything else
+renames or recolors; a scene with its own tempo enabled changes the *song* tempo the
+moment it fires. It's a separate op from the `{bpm}` name token for exactly that reason —
+folding it into a rename would make a naming pass quietly alter playback. Below
+`MIN_TEMPO` means "clear it", which is also the way back out after turning it on.
+
+Unlike color, **tempo reverses cleanly in both directions**: "follows the song" is a state
+Live will accept a write for, where "no color" is not. So turning a tempo on is fully
+undoable and there's no counterpart to `countUnrevertableColors`.
 
 **`sceneTitle.ts`** — everything in a scene name *except* the role tag:
 
