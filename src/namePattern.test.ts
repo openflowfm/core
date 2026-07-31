@@ -1,14 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import {
   compilePattern,
+  DEFAULT_SCENE_PATTERN,
   describePatternError,
   patternErrors,
   SCENE_TOKENS,
   type TokenRegistry,
 } from './namePattern.js';
 
-/** The convention the app writes today. */
-const FULL = '{song} {bpm?} {key?} [{role?}]';
+/**
+ * The convention the app writes today. Deliberately the exported constant and
+ * not a copy of it — `App.tsx` compiles this at module scope with a `!`, so
+ * "it compiles" has to be something a test actually holds down.
+ */
+const FULL = DEFAULT_SCENE_PATTERN;
 
 const compile = (p: string, r?: TokenRegistry) => {
   const c = compilePattern(p, r);
@@ -17,6 +22,12 @@ const compile = (p: string, r?: TokenRegistry) => {
 };
 
 describe('accepting and rejecting patterns', () => {
+  it('compiles the default scene pattern — App.tsx asserts this with a !', () => {
+    expect(DEFAULT_SCENE_PATTERN).toBe('{song} {bpm?} {key?} [{role?}]');
+    expect(patternErrors(DEFAULT_SCENE_PATTERN)).toEqual([]);
+    expect(compilePattern(DEFAULT_SCENE_PATTERN)).not.toBeNull();
+  });
+
   it('accepts the shapes the scheme is built on', () => {
     for (const p of [
       '{song}',

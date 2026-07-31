@@ -52,6 +52,16 @@ export interface TokenSpec {
 export type TokenRegistry = Readonly<Record<string, TokenSpec>>;
 
 /**
+ * The convention the app writes today, and what the scheme will default to.
+ *
+ * Everything after `{song}` is optional so that a set nobody has mapped yet
+ * still parses — every scene reads as a song with no facts, rather than as 848
+ * unmapped rows. Making them required is the stricter reading and the way to
+ * find out what *doesn't* conform; see the `unmapped` list in `derive.ts`.
+ */
+export const DEFAULT_SCENE_PATTERN = '{song} {bpm?} {key?} [{role?}]';
+
+/**
  * Tokens available in a scene name.
  *
  * `bpm` and `key` are shape-constrained, which is what makes `{song} {bpm}

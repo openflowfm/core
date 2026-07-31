@@ -13,10 +13,11 @@ src/ops.ts           building clip writes, and reversing them
 src/roles.ts         scene roles: the [role] tag, and scene writes
 src/sceneTitle.ts    the rest of the scene name — {song} {bpm} {key}
 src/namePattern.ts   patterns that can be read back: format, parse, validate
+src/derive.ts        the set → the mapping, by reversing the pattern
 src/index.ts         barrel
 ```
 
-Run with `npm test` from the repo root. 195 tests.
+Run with `npm test` from the repo root. 218 tests.
 
 ## The one rule
 
@@ -230,6 +231,32 @@ Two things follow, both load-bearing:
 `parse` returns `null` rather than a partial result. During the mapping pass `null` is
 the common and correct answer — this scene isn't named by the scheme yet — while a
 half-read name would attach a scene to the wrong song.
+
+**`derive.ts`** — the other half of the trick: run every scene name back through the
+compiled pattern and recover which song and role it belongs to. Scenes have no stable id
+in the LOM, and after this they don't need one, because **the name is the record**.
+
+A song is a **label, not a range** — whatever scenes carry its name, wherever they sit —
+so a reprise sixty scenes later is the same song for free. `blocks` reports the
+contiguous runs for display, and more than one is worth a lint line rather than an error:
+the other reason for two blocks is two different songs sharing a name.
+
+`observed` holds the **distinct** values the set carries for each fact, not a single
+answer. One entry means the scenes agree; more than one is a disagreement for the library
+to arbitrate. Collapsing them to "the first one" would hide exactly the drift this exists
+to surface, which is why the songs table renders a clash in amber rather than picking.
+
+**`MIN_TEMPO` is a range check, not a comparison to −1, and that's the point.**
+`Scene.tempo` is documented to answer −1 when the scene has no tempo of its own, but the
+snapshot reads it with `gnum`, which answers **0** for a property it couldn't read. Both
+sit below any real tempo — Live's own assertion in the 12.4.3 binary is
+`>= 20.0 && <= 1000.0` — so a range check treats them identically and cannot be caught
+out by which one arrived. That is the same trap that has bitten `color_index`, `parseId`
+and the palette sweep, defused by not needing to tell the two apart.
+
+Song identity is case-insensitive, like `roleKey`. `Nightfall` typed in the app and
+`nightfall` typed into Live are one song; the alternative splits a song in two over a
+shift key and shows it twice in the catalog.
 
 ## What belongs here next
 
