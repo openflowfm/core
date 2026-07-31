@@ -10,10 +10,11 @@ src/pattern.ts       token template evaluation + song-title parsing
 src/trackColumns.ts  Live's flat track list → grid columns + group headers
 src/gridRange.ts     block selection + active-cell movement over the columns
 src/ops.ts           building clip writes, and reversing them
+src/roles.ts         scene roles: the name convention, and scene writes
 src/index.ts         barrel
 ```
 
-Run with `npm test` from the repo root. 86 tests.
+Run with `npm test` from the repo root. 131 tests.
 
 ## The one rule
 
@@ -106,12 +107,49 @@ empty result *meaningful* — it says the write had no effect to undo, not that 
 already that color should write 8, not 30. A progress bar reporting work that isn't
 happening is a lie about cost.
 
+**`roles.ts`** — what a scene is *for*: `intro`, `verse`, `chorus`, `jam`. One role per
+scene, stored as a bracketed tag in the scene's own name:
+
+```
+Nightfall 128 Bm [chorus]
+```
+
+**The set is the storage, and that's the design.** Scenes have no stable id in the LOM,
+so a sidecar file could only be keyed by index — which silently relabels everything below
+an inserted scene — or by name, at which point the name is already the identity and the
+file buys nothing. In the name, the role travels with the `.als` to the gig laptop and is
+visible in Live itself.
+
+**The tag is bracketed rather than a bare trailing word**, and this is the part worth
+defending. `parseSongTitle` already reads the last token as `{label}`, so `128 Bm Jam` is
+genuinely ambiguous. Worse, a bare word could only be recognised by matching against the
+vocabulary — so renaming a role from `jam` to `solo` would make every scene using it
+silently roleless. A tag stays visibly *there* when its name is unknown, which is the
+difference between a failure you can see and one that just loses data. `ROLE_CHARS` is
+deliberately narrow for the same reason: a scene may carry brackets of its own
+(`[alt mix/b]`), and only things shaped like role names are read as roles.
+
+`roleKey` matches case-insensitively, so `[Chorus]` typed by hand in Live and `[chorus]`
+written by us are one role rather than two entries with two colors. `mergeVocabulary`
+unions the configured list with whatever is actually tagged in the set — a vocabulary
+listing only what someone remembered to configure would hide a role typed straight into
+Live and then fail to color it for no visible reason.
+
+The scene-write half mirrors `ops.ts`, with one exclusion that's specific to scenes:
+**a scene that had no color at all cannot be restored to having none.** Live documents
+`Scene.color_index` as nullable and Max's LiveAPI can't construct that None to write it,
+so `inverseSceneOps` drops the color revert rather than painting slot 0 over it — an undo
+that leaves the scene a color it never had is worse than one that leaves it alone.
+`countUnrevertableColors` exists so the caller can *say* so; an undo that quietly does
+less than it claims is exactly what this module is written to avoid.
+
 ## What belongs here next
 
 Roughly the order it's coming:
 
 - **Song segmentation** — grouping a flat scene list into songs. Needs a real answer
-  for what marks a boundary in the actual set.
+  for what marks a boundary in the actual set. Roles already give a scene a label; a
+  song is the run of scenes that shares one.
 - **Shape fingerprinting and template matching** — a song's scene×track occupancy
   matrix, clustered so one gesture assigns roles to a whole song positionally.
 - **Scheme evaluation** — role→color map plus naming template, applied over a snapshot
