@@ -32,6 +32,11 @@ export interface SceneInput {
   name: string;
   /** Live's `Scene.tempo`. Below `MIN_TEMPO` means the scene has none. */
   tempo: number;
+  /**
+   * Live's `Scene.color_index`, or -1 for no color at all — which is not slot 0.
+   * A song owns one color, so this is observed like bpm and key are.
+   */
+  colorIndex: number;
 }
 
 export interface DerivedScene {
@@ -81,6 +86,13 @@ export interface DerivedSong {
     key: string[];
     /** `Scene.tempo`, which is the same fact from Live's own property. */
     tempo: number[];
+    /**
+     * Palette slots the song's scenes carry. Unlike the tokens above, **-1 is a
+     * value here, not an omission**: a song where half the scenes are colored
+     * and half aren't is precisely the drift a one-color-per-song rule exists to
+     * catch, so it reads as two observations rather than one.
+     */
+    colorIndex: number[];
   };
 }
 
@@ -205,7 +217,7 @@ export function derive(
         name: song,
         scenes: [],
         blocks: [],
-        observed: { bpm: [], key: [], tempo: [] },
+        observed: { bpm: [], key: [], tempo: [], colorIndex: [] },
       };
       bySong.set(key, entry);
       songs.push(entry);
@@ -214,6 +226,11 @@ export function derive(
     push(entry.observed.bpm, fields.bpm);
     push(entry.observed.key, fields.key);
     push(entry.observed.tempo, tempo);
+    // Not through `push`: it drops `''`/null as "the name didn't say", and an
+    // uncolored scene did say — it said none.
+    if (!entry.observed.colorIndex.includes(sc.colorIndex)) {
+      entry.observed.colorIndex.push(sc.colorIndex);
+    }
   }
 
   for (const s of songs) s.blocks = blocksOf(s.scenes);
@@ -228,14 +245,50 @@ export function songByScene(d: Derivation): Map<number, DerivedSong> {
   return out;
 }
 
+/**
+ * Widen a scene selection to every scene of every song it touches, ascending.
+ *
+ * This is what makes a song-scoped write song-scoped: pick one scene of
+ * Nightfall and the color lands on all twelve, including a reprise sixty scenes
+ * later, because a song is a label rather than a range.
+ *
+ * A selected scene the pattern couldn't read has no song to widen to and passes
+ * through as itself. Dropping it instead would make the swatch silently do
+ * nothing on exactly the scenes a mapping pass hasn't reached yet.
+ */
+export function scenesOfSongs(d: Derivation, scenes: readonly number[]): number[] {
+  const bySong = songByScene(d);
+  const out = new Set<number>();
+  for (const s of scenes) {
+    const song = bySong.get(s);
+    if (song) for (const own of song.scenes) out.add(own);
+    else out.add(s);
+  }
+  return [...out].sort((a, b) => a - b);
+}
+
+/** The songs a scene selection touches, in order of first appearance. */
+export function songsOfScenes(d: Derivation, scenes: readonly number[]): DerivedSong[] {
+  const bySong = songByScene(d);
+  const seen = new Set<DerivedSong>();
+  for (const s of scenes) {
+    const song = bySong.get(s);
+    if (song) seen.add(song);
+  }
+  return d.songs.filter((s) => seen.has(s));
+}
+
 /** Songs the set can't answer for consistently — the input to lint. */
 export function disagreements(d: Derivation): Array<{
   song: string;
-  field: 'bpm' | 'key' | 'tempo';
+  field: 'bpm' | 'key' | 'tempo' | 'color';
   values: string[];
 }> {
-  const out: Array<{ song: string; field: 'bpm' | 'key' | 'tempo'; values: string[] }> =
-    [];
+  const out: Array<{
+    song: string;
+    field: 'bpm' | 'key' | 'tempo' | 'color';
+    values: string[];
+  }> = [];
   for (const song of d.songs) {
     if (song.observed.bpm.length > 1) {
       out.push({ song: song.name, field: 'bpm', values: song.observed.bpm });
@@ -248,6 +301,13 @@ export function disagreements(d: Derivation): Array<{
         song: song.name,
         field: 'tempo',
         values: song.observed.tempo.map(String),
+      });
+    }
+    if (song.observed.colorIndex.length > 1) {
+      out.push({
+        song: song.name,
+        field: 'color',
+        values: song.observed.colorIndex.map((i) => (i < 0 ? 'none' : String(i))),
       });
     }
   }

@@ -120,6 +120,11 @@ the grid. **Collapsing, though, is keyed by song**: folding "Nightfall" folds al
 reprise included. Two blocks then show two headers, which is honest, because the set
 really does contain that song twice.
 
+The header also carries the song's **color**, as `colorIndex` plus `colorClash`. Two
+fields rather than one because "uncolored" and "colored inconsistently" are different
+answers and only one of them is worth reporting: a header that showed the first scene's
+color while the rest of the block disagreed would be a confident lie.
+
 Every field on `SongHeader` is a primitive, including the facts, which arrive as rendered
 strings (`128`, or `128 / 130` when the scenes disagree) rather than as the observed
 arrays. That's the same constraint `marksByScene` obeys: the header crosses into a
@@ -386,6 +391,17 @@ the other reason for two blocks is two different songs sharing a name.
 answer. One entry means the scenes agree; more than one is a disagreement for the library
 to arbitrate. Collapsing them to "the first one" would hide exactly the drift this exists
 to surface, which is why the songs table renders a clash in amber rather than picking.
+
+**`observed.colorIndex` breaks the omission rule the other facts follow, deliberately.**
+A scene that simply doesn't state its key is incomplete rather than contradictory, so
+`push` drops it. Color has no such thing as "didn't say": a song is one color, and one
+where half the scenes are painted and half aren't is precisely the drift the rule exists
+to catch — so **-1 is a value here**, and a half-painted song reports two observations.
+
+`scenesOfSongs` widens a scene selection to every scene of every song it touches. That's
+what makes a color write song-scoped rather than selection-scoped; a scene the pattern
+couldn't read has no song to widen to and passes through as itself, because dropping it
+would make the write a silent no-op on exactly the scenes a mapping pass hasn't reached.
 
 **`MIN_TEMPO` is a range check, not a comparison to −1, and that's the point.**
 `Scene.tempo` is documented to answer −1 when the scene has no tempo of its own, but the

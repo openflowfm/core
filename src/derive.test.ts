@@ -4,16 +4,23 @@ import {
   derive,
   disagreements,
   MIN_TEMPO,
+  scenesOfSongs,
   songByScene,
   songKey,
+  songsOfScenes,
   type SceneInput,
 } from './derive.js';
 import { compilePattern } from './namePattern.js';
 
 const PATTERN = compilePattern('{song} {bpm?} {key?} [{role?}]')!;
 
-/** Scene with no tempo of its own — Live answers -1. */
-const scene = (i: number, name: string, tempo = -1): SceneInput => ({ i, name, tempo });
+/** Scene with no tempo and no color of its own — Live answers -1 for both. */
+const scene = (i: number, name: string, tempo = -1, colorIndex = -1): SceneInput => ({
+  i,
+  name,
+  tempo,
+  colorIndex,
+});
 
 describe('blocksOf', () => {
   it('groups consecutive scenes into one run', () => {
@@ -69,7 +76,12 @@ describe('derive', () => {
 
   it('records what the set says each song is', () => {
     const d = derive(SCENES, PATTERN);
-    expect(d.songs[0]!.observed).toEqual({ bpm: ['128'], key: ['Bm'], tempo: [] });
+    expect(d.songs[0]!.observed).toEqual({
+      bpm: ['128'],
+      key: ['Bm'],
+      tempo: [],
+      colorIndex: [-1],
+    });
   });
 
   it('treats a name with no bpm or key as the song alone, not as unmapped', () => {
@@ -164,6 +176,68 @@ describe('scene tempo', () => {
   it('rejects anything below Live’s own lower bound', () => {
     expect(derive([scene(0, 'A', MIN_TEMPO - 1)], PATTERN).scenes[0]!.tempo).toBeNull();
     expect(derive([scene(0, 'A', MIN_TEMPO)], PATTERN).scenes[0]!.tempo).toBe(MIN_TEMPO);
+  });
+});
+
+describe('song color', () => {
+  it('records one slot when every scene of the song carries it', () => {
+    const d = derive(
+      [scene(0, 'Nightfall [intro]', -1, 14), scene(1, 'Nightfall [verse]', -1, 14)],
+      PATTERN,
+    );
+    expect(d.songs[0]!.observed.colorIndex).toEqual([14]);
+  });
+
+  it('counts "no color" as a value, so a half-painted song disagrees', () => {
+    // The one case a song-scoped color rule exists to catch. Treating -1 as an
+    // omission the way an unwritten {key} is would hide it.
+    const d = derive(
+      [scene(0, 'Nightfall [intro]', -1, 14), scene(1, 'Nightfall [verse]', -1, -1)],
+      PATTERN,
+    );
+    expect(d.songs[0]!.observed.colorIndex).toEqual([14, -1]);
+    expect(disagreements(d)).toEqual([
+      { song: 'Nightfall', field: 'color', values: ['14', 'none'] },
+    ]);
+  });
+});
+
+describe('scenesOfSongs', () => {
+  const SET = derive(
+    [
+      scene(0, 'Nightfall [intro]'),
+      scene(1, 'Nightfall [verse]'),
+      scene(2, 'Glass Tunnel [intro]'),
+      scene(3, 'Nightfall [outro]'),
+    ],
+    PATTERN,
+  );
+
+  it('widens one scene to every scene of its song, reprise included', () => {
+    expect(scenesOfSongs(SET, [1])).toEqual([0, 1, 3]);
+  });
+
+  it('unions the songs when the selection spans more than one', () => {
+    expect(scenesOfSongs(SET, [1, 2])).toEqual([0, 1, 2, 3]);
+  });
+
+  it('passes an unmapped scene through rather than dropping it', () => {
+    // Nothing to widen to, and widening to nothing would make the write a
+    // silent no-op on exactly the scenes a mapping pass hasn’t reached.
+    const d = derive([scene(0, '')], compilePattern('[{role}] {song}')!);
+    expect(d.unmapped).toEqual([0]);
+    expect(scenesOfSongs(d, [0])).toEqual([0]);
+  });
+
+  it('is empty for an empty selection', () => {
+    expect(scenesOfSongs(SET, [])).toEqual([]);
+  });
+
+  it('names the songs a selection touches, in set order', () => {
+    expect(songsOfScenes(SET, [2, 1]).map((s) => s.name)).toEqual([
+      'Nightfall',
+      'Glass Tunnel',
+    ]);
   });
 });
 

@@ -4,7 +4,12 @@ import { derive, type SceneInput } from './derive.js';
 import { compilePattern, DEFAULT_SCENE_PATTERN } from './namePattern.js';
 
 const PATTERN = compilePattern(DEFAULT_SCENE_PATTERN)!;
-const scene = (i: number, name: string, tempo = -1): SceneInput => ({ i, name, tempo });
+const scene = (i: number, name: string, tempo = -1, colorIndex = -1): SceneInput => ({
+  i,
+  name,
+  tempo,
+  colorIndex,
+});
 
 /** Two songs back to back, then the first one again as a reprise. */
 const SET = derive(
@@ -44,6 +49,43 @@ describe('headers', () => {
       key: 'Bm',
       tempo: '',
       clash: false,
+    });
+  });
+
+  it('carries the song color when its scenes agree on one', () => {
+    const d = derive(
+      [
+        scene(0, '[A] @128-Bm NIGHTFALL', -1, 14),
+        scene(1, '[B] @128-Bm NIGHTFALL', -1, 14),
+      ],
+      PATTERN,
+    );
+    expect(songRows(d).headers.get(0)).toMatchObject({
+      colorIndex: 14,
+      colorClash: false,
+    });
+  });
+
+  it('refuses to show a color the whole song does not carry', () => {
+    // Painting the header from the first scene would state a song color the
+    // block behind it disagrees with.
+    const d = derive(
+      [
+        scene(0, '[A] @128-Bm NIGHTFALL', -1, 14),
+        scene(1, '[B] @128-Bm NIGHTFALL', -1, 41),
+      ],
+      PATTERN,
+    );
+    expect(songRows(d).headers.get(0)).toMatchObject({
+      colorIndex: -1,
+      colorClash: true,
+    });
+  });
+
+  it('leaves an uncolored song uncolored rather than clashing', () => {
+    expect(songRows(SET).headers.get(0)).toMatchObject({
+      colorIndex: -1,
+      colorClash: false,
     });
   });
 

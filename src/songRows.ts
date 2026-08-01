@@ -39,6 +39,15 @@ export interface SongHeader {
   tempo: string;
   /** True when any rendered fact above is a disagreement rather than a value. */
   clash: boolean;
+  /**
+   * The palette slot the whole song carries, or -1 when it has none *or* when
+   * its scenes disagree. A song is one color, so a header showing the first
+   * scene's color while the rest of the block is something else would be a
+   * confident lie — `colorClash` separates the two cases for whoever renders it.
+   */
+  colorIndex: number;
+  /** True when the song's scenes hold more than one color between them. */
+  colorClash: boolean;
   collapsed: boolean;
 }
 
@@ -73,6 +82,10 @@ export function songRows(
       song.observed.bpm.length > 1 ||
       song.observed.key.length > 1 ||
       song.observed.tempo.length > 1;
+    // Color is kept out of `clash` on purpose: that one annotates the facts
+    // strip, and a color disagreement is shown by the header's own band.
+    const colorClash = song.observed.colorIndex.length > 1;
+    const colorIndex = colorClash ? -1 : (song.observed.colorIndex[0] ?? -1);
 
     song.blocks.forEach((block, i) => {
       headers.set(block.from, {
@@ -87,6 +100,8 @@ export function songRows(
         key: show(song.observed.key),
         tempo: show(song.observed.tempo),
         clash,
+        colorIndex,
+        colorClash,
         collapsed: isCollapsed,
       });
     });
