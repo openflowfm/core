@@ -52,14 +52,46 @@ export interface TokenSpec {
 export type TokenRegistry = Readonly<Record<string, TokenSpec>>;
 
 /**
- * The convention the app writes today, and what the scheme will default to.
+ * The convention the app writes.
  *
- * Everything after `{song}` is optional so that a set nobody has mapped yet
- * still parses — every scene reads as a song with no facts, rather than as 848
- * unmapped rows. Making them required is the stricter reading and the way to
- * find out what *doesn't* conform; see the `unmapped` list in `derive.ts`.
+ *   [CHORUS] @128-Bm NIGHTFALL
+ *    └ role┘  │  │   └ song ┘
+ *             │  └ key
+ *             └ bpm
+ *
+ * **Role first, then the facts, then the name**, so a column of scene names
+ * reads as structure rather than as a list of titles. Everything but `{song}` is
+ * optional, so a set nobody has mapped yet still parses — every scene reads as a
+ * song with no facts rather than as 848 unmapped rows.
+ *
+ * Two characters do all the delimiting, and neither is decoration:
+ *
+ * - **`@` opens the facts from the front.** It can't appear in `ROLE_CHARS` and
+ *   won't start a song title, so the group is identifiable before you've read
+ *   any of it — which is what makes the *closing* bracket unnecessary.
+ * - **`-` joins them, and drops when either side is missing.** After the `@` a
+ *   digit begins a bpm and a letter begins a key, so `@128-Bm`, `@128` and `@Bm`
+ *   are all distinguishable with no further punctuation. That's the whole reason
+ *   the facts need no bracket of their own.
+ *
+ * The role keeps its brackets, and that asymmetry is deliberate: a bare word
+ * could only be recognised by matching the vocabulary, so renaming a role would
+ * make every scene using it silently roleless. `bpm` and `key` are recognised by
+ * *shape*, so they need no such protection. See `roles.ts`.
  */
-export const DEFAULT_SCENE_PATTERN = '{song} {bpm?} {key?} [{role?}]';
+export const DEFAULT_SCENE_PATTERN = '([{role}])? (@{bpm?}-{key?})? {song}';
+
+/**
+ * The convention this app wrote before the one above — `Nightfall 128 Bm [chorus]`.
+ *
+ * Kept, and still compiled, because **derivation reads the mapping out of the
+ * names**. Retiring it would make every scene in an existing set unmapped the
+ * moment the pattern changed: the songs would vanish from the grid, and there
+ * would be nothing left to select in order to rename them into the new
+ * convention. `derive.ts` tries patterns in order, so a set converts scene by
+ * scene as it's renamed rather than all at once.
+ */
+export const LEGACY_SCENE_PATTERN = '{song} {bpm?} {key?} [{role?}]';
 
 /**
  * Tokens available in a scene name.
@@ -85,20 +117,71 @@ export const SCENE_TOKENS: TokenRegistry = {
 
 type Segment =
   | { kind: 'literal'; text: string }
-  | { kind: 'token'; name: string; optional: boolean };
+  | { kind: 'token'; name: string; optional: boolean }
+  /**
+   * `( … )?` — a run that appears together or not at all, carrying its own
+   * delimiters out with it.
+   *
+   * This exists because the rule an optional *token* follows — take the literal
+   * before you, and the one after you only at the very end of the pattern —
+   * can't express a bracketed field in the middle of a name. `[{role?}] {song}`
+   * formats a role-less scene as `] NIGHTFALL`: the opening bracket goes with
+   * the token, the closing one is stranded. Nothing short of grouping fixes
+   * that, and every convention that puts the title last needs it.
+   *
+   * Groups don't nest. One level covers `([{role}])?` and `(@{bpm?}-{key?})?`,
+   * and a nested version would need a story for what a half-present inner group
+   * means that nobody has a use for yet.
+   */
+  | { kind: 'group'; nodes: Segment[] };
 
-const TOKEN_RE = /\{([A-Za-z][A-Za-z0-9]*)(\??)\}/g;
+const TOKEN_AT = /^\{([A-Za-z][A-Za-z0-9]*)(\??)\}/;
 
-function segmentsOf(pattern: string): Segment[] {
+/**
+ * `(` only opens a group when there's a matching `)?` — otherwise it's a
+ * literal. That's what lets a pattern contain a plain parenthesis without an
+ * escape mechanism this file would otherwise have to invent.
+ */
+function segmentsOf(pattern: string, allowGroups = true): Segment[] {
   const out: Segment[] = [];
-  let last = 0;
-  TOKEN_RE.lastIndex = 0;
-  for (const m of pattern.matchAll(TOKEN_RE)) {
-    if (m.index! > last) out.push({ kind: 'literal', text: pattern.slice(last, m.index) });
-    out.push({ kind: 'token', name: m[1]!, optional: m[2] === '?' });
-    last = m.index! + m[0].length;
+  let lit = '';
+  let i = 0;
+  const flush = () => {
+    if (lit !== '') out.push({ kind: 'literal', text: lit });
+    lit = '';
+  };
+
+  while (i < pattern.length) {
+    if (allowGroups && pattern[i] === '(') {
+      const close = pattern.indexOf(')?', i + 1);
+      if (close !== -1) {
+        flush();
+        out.push({ kind: 'group', nodes: segmentsOf(pattern.slice(i + 1, close), false) });
+        i = close + 2;
+        continue;
+      }
+    }
+    const m = TOKEN_AT.exec(pattern.slice(i));
+    if (m) {
+      flush();
+      out.push({ kind: 'token', name: m[1]!, optional: m[2] === '?' });
+      i += m[0].length;
+      continue;
+    }
+    lit += pattern[i];
+    i++;
   }
-  if (last < pattern.length) out.push({ kind: 'literal', text: pattern.slice(last) });
+  flush();
+  return out;
+}
+
+/** Every token in a pattern, groups flattened. */
+function tokensIn(segments: Segment[]): Extract<Segment, { kind: 'token' }>[] {
+  const out: Extract<Segment, { kind: 'token' }>[] = [];
+  for (const s of segments) {
+    if (s.kind === 'token') out.push(s);
+    else if (s.kind === 'group') out.push(...tokensIn(s.nodes));
+  }
   return out;
 }
 
@@ -121,13 +204,57 @@ interface Unit {
   suffix: string;
 }
 
-type Emit = { kind: 'literal'; text: string } | ({ kind: 'token' } & Unit);
+/**
+ * One piece of a group.
+ *
+ * `sepFor` is what makes `@128-Bm`, `@128` and `@Bm` fall out of one pattern: a
+ * literal sitting *between* two tokens is a **separator**, and a separator only
+ * means anything when both sides are there. Name the tokens it joins and it can
+ * drop with either of them. A literal at the group's edge — the `@`, the
+ * brackets — joins nothing, so it stands as long as the group does.
+ */
+type GroupPart =
+  | { kind: 'literal'; text: string; sepFor: string[] }
+  | { kind: 'token'; name: string; optional: boolean };
+
+type Emit =
+  | { kind: 'literal'; text: string }
+  | ({ kind: 'token' } & Unit)
+  | { kind: 'group'; parts: GroupPart[] };
+
+/** A group's segments, with each internal literal told which tokens it joins. */
+function partsOf(nodes: Segment[]): GroupPart[] {
+  return nodes.map((n, i) => {
+    if (n.kind !== 'literal') {
+      // Groups don't nest, so anything not a literal here is a token.
+      const t = n as Extract<Segment, { kind: 'token' }>;
+      return { kind: 'token', name: t.name, optional: t.optional };
+    }
+    // `findLast` needs lib es2023; the project targets lower, and a reverse
+    // scan says the same thing without moving the whole build.
+    const earlier = nodes.slice(0, i).filter((s) => s.kind === 'token');
+    const before = earlier[earlier.length - 1];
+    const after = nodes.slice(i + 1).find((s) => s.kind === 'token');
+    const joins = [before, after].filter((s) => s !== undefined);
+    return {
+      kind: 'literal',
+      text: n.text,
+      // Only a literal with a token on *both* sides is a separator.
+      sepFor: joins.length === 2 ? joins.map((s) => (s as { name: string }).name) : [],
+    };
+  });
+}
 
 function unitsOf(segments: Segment[]): Emit[] {
   const out: Emit[] = [];
   let i = 0;
   while (i < segments.length) {
     const seg = segments[i]!;
+    if (seg.kind === 'group') {
+      out.push({ kind: 'group', parts: partsOf(seg.nodes) });
+      i++;
+      continue;
+    }
     if (seg.kind === 'token') {
       out.push({ kind: 'token', prefix: '', name: seg.name, optional: seg.optional, suffix: '' });
       i++;
@@ -227,10 +354,7 @@ function structuralErrors(
   registry: TokenRegistry,
 ): PatternError[] {
   const errors: PatternError[] = [];
-  const tokens = segments.filter((s) => s.kind === 'token') as Extract<
-    Segment,
-    { kind: 'token' }
-  >[];
+  const tokens = tokensIn(segments);
 
   if (tokens.length === 0) return [{ kind: 'no-tokens' }];
 
@@ -244,6 +368,14 @@ function structuralErrors(
     seen.add(t.name);
     if (t.optional && registry[t.name]!.free) {
       errors.push({ kind: 'optional-free', token: t.name });
+    }
+  }
+  // A free token inside an optional group is the same mistake wearing a group:
+  // an absent free field and an empty one are indistinguishable either way.
+  for (const g of segments) {
+    if (g.kind !== 'group') continue;
+    for (const t of tokensIn(g.nodes)) {
+      if (registry[t.name]?.free) errors.push({ kind: 'optional-free', token: t.name });
     }
   }
   // Unknown tokens make every check below meaningless — there's no shape to
@@ -283,7 +415,8 @@ function structuralErrors(
   }
 
   // An optional token drops its preceding literal when it's absent. Without
-  // one there is no separator to drop, and the name closes up wrongly.
+  // one there is no separator to drop, and the name closes up wrongly. A group
+  // is exempt: it carries its own delimiters, which is what it's for.
   const first = segments[0];
   if (first?.kind === 'token' && first.optional) {
     errors.push({ kind: 'optional-first', token: first.name });
@@ -298,10 +431,36 @@ function build(pattern: string, registry: TokenRegistry): CompiledPattern {
   const tokens: PatternToken[] = [];
 
   let source = '^';
-  for (const u of units) {
+  units.forEach((u, i) => {
     if (u.kind === 'literal') {
-      source += escapeRe(u.text);
-      continue;
+      // A space *next to a group* becomes `\s*`: the group can vanish, and then
+      // there's nothing for the space to sit between. `format` collapses runs of
+      // whitespace, so the two halves agree.
+      //
+      // Only next to a group, though. Relaxing every space breaks a pattern
+      // whose tokens are all required — `{song} {role}` with a lazy `{song}`
+      // reads "Nightfall chorus" as song "N" and role "ightfall chorus" the
+      // moment the space between them stops being mandatory.
+      const nextToGroup =
+        units[i - 1]?.kind === 'group' || units[i + 1]?.kind === 'group';
+      source += u.text.trim() === '' && nextToGroup ? '\\s*' : escapeRe(u.text);
+      return;
+    }
+    if (u.kind === 'group') {
+      let inner = '';
+      for (const p of u.parts) {
+        if (p.kind === 'literal') {
+          // A separator is optional in the regex for the same reason it's
+          // droppable in the formatter — `@128` has no `-` to match.
+          inner += p.sepFor.length > 0 ? `(?:${escapeRe(p.text)})?` : escapeRe(p.text);
+          continue;
+        }
+        const s = registry[p.name]!;
+        inner += `(${s.shape}${s.free ? '?' : ''})${p.optional ? '?' : ''}`;
+        tokens.push({ name: p.name, optional: true });
+      }
+      source += `(?:${inner})?`;
+      return;
     }
     const spec = registry[u.name]!;
     // Free tokens match lazily so an optional field later in the pattern gets
@@ -311,7 +470,7 @@ function build(pattern: string, registry: TokenRegistry): CompiledPattern {
     const piece = escapeRe(u.prefix) + body + escapeRe(u.suffix);
     source += u.optional ? `(?:${piece})?` : piece;
     tokens.push({ name: u.name, optional: u.optional });
-  }
+  });
   source += '$';
 
   const re = new RegExp(source);
@@ -322,9 +481,24 @@ function build(pattern: string, registry: TokenRegistry): CompiledPattern {
     source,
     format(values) {
       let out = '';
+      const given = (n: string) => {
+        const v = values[n];
+        return v === undefined || v === null ? '' : String(v).trim();
+      };
       for (const u of units) {
         if (u.kind === 'literal') {
           out += u.text;
+          continue;
+        }
+        if (u.kind === 'group') {
+          const names = u.parts.filter((p) => p.kind === 'token').map((p) => p.name);
+          // All or nothing: a group with no values at all takes its delimiters
+          // with it, which is the entire reason groups exist.
+          if (!names.some((n) => given(n) !== '')) continue;
+          for (const p of u.parts) {
+            if (p.kind === 'token') out += given(p.name);
+            else if (p.sepFor.every((n) => given(n) !== '')) out += p.text;
+          }
           continue;
         }
         const v = values[u.name];

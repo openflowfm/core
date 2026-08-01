@@ -1,8 +1,8 @@
 // Roles — what a scene is *for*: intro, verse, chorus, jam.
 //
-// A role is stored in the scene's own name, as a bracketed tag at the end:
+// A role is stored in the scene's own name, as a bracketed tag at the front:
 //
-//   "Nightfall 128 Bm [chorus]"
+//   "[CHORUS] @128-Bm NIGHTFALL"
 //
 // **The set is the storage.** Scenes have no stable id in the LOM, so a sidecar
 // file could only be keyed by index — which silently relabels everything below
@@ -10,13 +10,16 @@
 // identity and the file buys nothing. Storing it in the name also means the role
 // travels with the .als to the gig laptop and is visible in Live itself.
 //
-// **The tag is bracketed rather than a bare trailing word**, and that is the
-// whole design. `parseSongTitle` already reads the last token as `{label}`, so
-// "128 Bm Jam" is genuinely ambiguous. Worse, a bare word could only be
-// recognised by matching it against the vocabulary — so renaming a role from
-// "jam" to "solo" would make every scene using it silently roleless. A tag is
-// still visibly *there* when its name is unknown, which is the difference
-// between a failure you can see and fix and one that just loses data.
+// **The tag is bracketed rather than a bare word**, and that is the whole
+// design. A bare word could only be recognised by matching it against the
+// vocabulary — so renaming a role from "jam" to "solo" would make every scene
+// using it silently roleless. A tag is still visibly *there* when its name is
+// unknown, which is the difference between a failure you can see and fix and one
+// that just loses data.
+//
+// That's also why the brackets survive while the facts group dropped its own:
+// `@128-Bm` is recognised by *shape* and needs no vocabulary to be read back, so
+// it can't fail the same way. Asymmetric on purpose, not for want of tidying.
 //
 // Pure and transport-free, like the rest of core/. Nothing here knows what a
 // palette index means to Live; colors travel through as opaque numbers.
@@ -108,16 +111,24 @@ export function nameWithoutRole(sceneName: string): string {
 /**
  * The scene name carrying `role`, or with its tag removed when `role` is null.
  *
- * Replaces an existing tag in place and appends at the end otherwise, so a
- * scene keeps whatever human title it already had.
+ * Replaces an existing tag **in place** and prepends otherwise, so a scene keeps
+ * whatever human title it already had. In place rather than always-prepend
+ * matters for a set still on the old convention: a scene named
+ * `Nightfall 128 Bm [chorus]` re-tagged as `[verse]` becomes
+ * `Nightfall 128 Bm [verse]`, not `[verse] Nightfall 128 Bm [chorus]`. It moves
+ * to the front the first time `titleOps` rewrites the whole name.
+ *
+ * The tag is written in caps, matching the song. `roleKey` folds case, so
+ * `[CHORUS]` and `[chorus]` are one role and this changes appearance only —
+ * a role typed by hand in Live still matches the vocabulary.
  */
 export function withRole(sceneName: string, role: string | null): string {
-  const tag = role === null ? '' : `[${tidy(role)}]`;
+  const tag = role === null ? '' : `[${tidy(role).toUpperCase()}]`;
   const at = findTag(sceneName);
   if (at) {
     return tidy(sceneName.slice(0, at.start) + tag + sceneName.slice(at.end));
   }
-  return tidy(role === null ? sceneName : `${sceneName} ${tag}`);
+  return tidy(role === null ? sceneName : `${tag} ${sceneName}`);
 }
 
 /**

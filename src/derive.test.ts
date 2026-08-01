@@ -222,3 +222,59 @@ describe('songByScene', () => {
     expect(by.has(1)).toBe(false);
   });
 });
+
+describe('reading more than one convention', () => {
+  // The migration path. A set is normally *half* converted — some scenes
+  // renamed into the current convention, the rest still on the old one — and
+  // both have to land in the same song or the grid falls apart mid-pass.
+  const CURRENT = compilePattern('([{role}])? (@{bpm?}-{key?})? {song}')!;
+  const LEGACY = compilePattern('{song} {bpm?} {key?} [{role?}]')!;
+  const BOTH = [CURRENT, LEGACY];
+
+  it('accepts a single pattern or a list, so existing callers are unaffected', () => {
+    const one = derive([scene(0, 'Nightfall 128 Bm [verse]')], LEGACY);
+    const many = derive([scene(0, 'Nightfall 128 Bm [verse]')], [LEGACY]);
+    expect(one).toEqual(many);
+  });
+
+  it('reads each scene with whichever pattern gets the most out of it', () => {
+    // Every scene pattern is *total* — `{song}` is free and the rest optional,
+    // so either one matches either name by swallowing it whole. Picking the
+    // first match would mean never consulting the second pattern at all.
+    const d = derive(
+      [
+        scene(0, '[INTRO] @128-Bm NIGHTFALL'),
+        scene(1, 'Nightfall 128 Bm [verse]'),
+      ],
+      BOTH,
+    );
+    expect(d.scenes[0]).toMatchObject({ song: 'NIGHTFALL', role: 'INTRO' });
+    expect(d.scenes[1]).toMatchObject({ song: 'Nightfall', role: 'verse' });
+    expect(d.scenes[1]!.fields).toMatchObject({ bpm: '128', key: 'Bm' });
+  });
+
+  it('collects a half-converted song into one entry, not two', () => {
+    // Song identity folds case, which is what makes NIGHTFALL and Nightfall the
+    // same song across the convention change rather than a split library.
+    const d = derive(
+      [
+        scene(0, '[INTRO] @128-Bm NIGHTFALL'),
+        scene(1, 'Nightfall 128 Bm [verse]'),
+        scene(2, 'Nightfall 128 Bm [chorus]'),
+      ],
+      BOTH,
+    );
+    expect(d.songs).toHaveLength(1);
+    expect(d.songs[0]!.scenes).toEqual([0, 1, 2]);
+    expect(d.songs[0]!.blocks).toEqual([{ from: 0, to: 2 }]);
+    // And the facts agree, so nothing shows as drift just for being mid-migration.
+    expect(d.songs[0]!.observed.bpm).toEqual(['128']);
+    expect(d.songs[0]!.observed.key).toEqual(['Bm']);
+  });
+
+  it('breaks a tie toward the earlier pattern', () => {
+    const d = derive([scene(0, 'Audio 5')], BOTH);
+    expect(d.scenes[0]!.song).toBe('Audio 5');
+    expect(d.unmapped).toEqual([]);
+  });
+});

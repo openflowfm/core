@@ -121,10 +121,54 @@ function push<T>(list: T[], v: T | null | undefined): void {
   if (!list.includes(v)) list.push(v);
 }
 
+/**
+ * Read a name through whichever pattern gets the most out of it.
+ *
+ * The mapping lives in the names, so a convention change can't be a clean
+ * break: switching patterns outright would make every scene in an already-named
+ * set unmapped at once, the songs would vanish from the grid, and there would be
+ * nothing left to select in order to rename them into the new convention.
+ *
+ * **Most fields wins, not first match**, and that is forced rather than chosen.
+ * Every scene pattern ends up *total*: `{song}` is free and everything else is
+ * optional, so any pattern matches any name by reading the whole thing as a
+ * title. First-match-wins would therefore always pick whichever pattern was
+ * listed first and never consult the other — the current convention would
+ * swallow `Nightfall 128 Bm [verse]` as one long song name.
+ *
+ * Counting fields is the same rule the pattern language already applies within
+ * a single pattern — *a name is read as filling as many parts as it can* — just
+ * lifted one level. Ties go to the earlier pattern, so the current convention
+ * wins a genuine ambiguity.
+ *
+ * `derive` deliberately doesn't report which pattern matched: nothing
+ * downstream should branch on it, and a set is normally half-converted.
+ */
+function readName(
+  name: string,
+  patterns: readonly CompiledPattern[],
+): Record<string, string> | null {
+  let best: Record<string, string> | null = null;
+  let bestCount = -1;
+  for (const p of patterns) {
+    const fields = p.parse(name);
+    if (fields === null) continue;
+    const count = Object.values(fields).filter((v) => v !== '').length;
+    if (count > bestCount) {
+      best = fields;
+      bestCount = count;
+    }
+  }
+  return best;
+}
+
 export function derive(
   scenes: readonly SceneInput[],
-  pattern: CompiledPattern,
+  pattern: CompiledPattern | readonly CompiledPattern[],
 ): Derivation {
+  const patterns = Array.isArray(pattern)
+    ? (pattern as readonly CompiledPattern[])
+    : [pattern as CompiledPattern];
   const derived: DerivedScene[] = [];
   const unmapped: number[] = [];
   const songs: DerivedSong[] = [];
@@ -135,7 +179,7 @@ export function derive(
   const ordered = [...scenes].sort((a, b) => a.i - b.i);
 
   for (const sc of ordered) {
-    const fields = pattern.parse(sc.name);
+    const fields = readName(sc.name, patterns);
     const song = fields?.song ?? null;
     const tempo = sc.tempo >= MIN_TEMPO ? sc.tempo : null;
 

@@ -81,15 +81,24 @@ describe('roleKey', () => {
 });
 
 describe('withRole', () => {
-  it('appends a tag to an untagged name', () => {
-    expect(withRole('Nightfall 128 Bm', 'chorus')).toBe('Nightfall 128 Bm [chorus]');
+  it('prepends a tag to an untagged name', () => {
+    expect(withRole('@128-Bm NIGHTFALL', 'chorus')).toBe('[CHORUS] @128-Bm NIGHTFALL');
+  });
+
+  it('writes the tag in caps, matching the song', () => {
+    // Appearance only — `roleKey` folds case, so a role typed by hand in Live
+    // still matches the vocabulary.
+    expect(withRole('NIGHTFALL', 'post chorus')).toBe('[POST CHORUS] NIGHTFALL');
+    expect(roleKey(roleIn(withRole('NIGHTFALL', 'Chorus'))!)).toBe('chorus');
   });
 
   it('replaces an existing tag in place rather than appending a second', () => {
+    // In place, not always-prepend: a set still on the old convention keeps its
+    // shape until `titleOps` rewrites the whole name.
     expect(withRole('Nightfall 128 Bm [verse]', 'chorus')).toBe(
-      'Nightfall 128 Bm [chorus]',
+      'Nightfall 128 Bm [CHORUS]',
     );
-    expect(withRole('[intro] Nightfall', 'chorus')).toBe('[chorus] Nightfall');
+    expect(withRole('[INTRO] NIGHTFALL', 'chorus')).toBe('[CHORUS] NIGHTFALL');
   });
 
   it('removes the tag when the role is null, leaving no double space', () => {
@@ -101,20 +110,22 @@ describe('withRole', () => {
     expect(withRole('Nightfall 128 Bm', null)).toBe('Nightfall 128 Bm');
   });
 
-  it('tags an empty name without a leading space', () => {
-    expect(withRole('', 'chorus')).toBe('[chorus]');
+  it('tags an empty name without a trailing space', () => {
+    expect(withRole('', 'chorus')).toBe('[CHORUS]');
   });
 
   it('round-trips: tagging twice replaces, never accumulates', () => {
-    const once = withRole('Nightfall', 'verse');
+    const once = withRole('NIGHTFALL', 'verse');
     const twice = withRole(once, 'chorus');
-    expect(twice).toBe('Nightfall [chorus]');
-    expect(nameWithoutRole(twice)).toBe('Nightfall');
+    expect(twice).toBe('[CHORUS] NIGHTFALL');
+    expect(nameWithoutRole(twice)).toBe('NIGHTFALL');
   });
 
   it('leaves a bracket group that is not a role alone', () => {
-    expect(withRole('Nightfall [alt mix/b]', 'chorus')).toBe(
-      'Nightfall [alt mix/b] [chorus]',
+    // `alt mix/b` has a `/`, which isn't in ROLE_CHARS — so it isn't a role,
+    // and the new tag goes to the front rather than replacing it.
+    expect(withRole('NIGHTFALL [alt mix/b]', 'chorus')).toBe(
+      '[CHORUS] NIGHTFALL [alt mix/b]',
     );
   });
 });
@@ -183,27 +194,27 @@ describe('findRole', () => {
 // Scene 0 is uncolored (-1), scenes 1 and 2 carry real colors. Scene 2 is the
 // only one with a tempo of its own.
 const BEFORE: SceneFields[] = [
-  { s: 0, name: 'Nightfall 128 Bm', colorIndex: -1, color: 0x000000, tempo: -1 },
-  { s: 1, name: 'Nightfall 128 Bm [verse]', colorIndex: 14, color: 0xff3636, tempo: -1 },
-  { s: 2, name: 'Nightfall 128 Bm [chorus]', colorIndex: 3, color: 0xf7f47c, tempo: 128 },
+  { s: 0, name: '@128-Bm NIGHTFALL', colorIndex: -1, color: 0x000000, tempo: -1 },
+  { s: 1, name: '[VERSE] @128-Bm NIGHTFALL', colorIndex: 14, color: 0xff3636, tempo: -1 },
+  { s: 2, name: '[CHORUS] @128-Bm NIGHTFALL', colorIndex: 3, color: 0xf7f47c, tempo: 128 },
 ];
 
 describe('roleOps', () => {
   it('tags the scenes that would actually change', () => {
     expect(roleOps(BEFORE, [0, 1], 'chorus')).toEqual([
-      { s: 0, name: 'Nightfall 128 Bm [chorus]' },
-      { s: 1, name: 'Nightfall 128 Bm [chorus]' },
+      { s: 0, name: '[CHORUS] @128-Bm NIGHTFALL' },
+      { s: 1, name: '[CHORUS] @128-Bm NIGHTFALL' },
     ]);
   });
 
   it('drops scenes already carrying that role', () => {
     expect(roleOps(BEFORE, [1, 2], 'chorus')).toEqual([
-      { s: 1, name: 'Nightfall 128 Bm [chorus]' },
+      { s: 1, name: '[CHORUS] @128-Bm NIGHTFALL' },
     ]);
   });
 
   it('clears a role', () => {
-    expect(roleOps(BEFORE, [2], null)).toEqual([{ s: 2, name: 'Nightfall 128 Bm' }]);
+    expect(roleOps(BEFORE, [2], null)).toEqual([{ s: 2, name: '@128-Bm NIGHTFALL' }]);
   });
 
   it('drops a clear on a scene that has no role', () => {
@@ -235,9 +246,9 @@ describe('sceneColorOps', () => {
 
 describe('inverseSceneOps', () => {
   it('restores the previous name', () => {
-    const ops = [{ s: 2, name: 'Nightfall 128 Bm [jam]' }];
+    const ops = [{ s: 2, name: '[JAM] @128-Bm NIGHTFALL' }];
     expect(inverseSceneOps(BEFORE, ops)).toEqual([
-      { s: 2, name: 'Nightfall 128 Bm [chorus]' },
+      { s: 2, name: '[CHORUS] @128-Bm NIGHTFALL' },
     ]);
   });
 
@@ -257,7 +268,7 @@ describe('inverseSceneOps', () => {
 
   it('still reverses the name half of a write it cannot fully undo', () => {
     const ops = [{ s: 0, name: 'X [jam]', colorIndex: 41, color: 0x92a7ff }];
-    expect(inverseSceneOps(BEFORE, ops)).toEqual([{ s: 0, name: 'Nightfall 128 Bm' }]);
+    expect(inverseSceneOps(BEFORE, ops)).toEqual([{ s: 0, name: '@128-Bm NIGHTFALL' }]);
   });
 
   it('never reverts a field the op did not write', () => {
@@ -277,9 +288,9 @@ describe('inverseSceneOps', () => {
   it('round-trips a role assignment back to the original names', () => {
     const ops = roleOps(BEFORE, [0, 1, 2], 'jam');
     expect(inverseSceneOps(BEFORE, ops)).toEqual([
-      { s: 0, name: 'Nightfall 128 Bm' },
-      { s: 1, name: 'Nightfall 128 Bm [verse]' },
-      { s: 2, name: 'Nightfall 128 Bm [chorus]' },
+      { s: 0, name: '@128-Bm NIGHTFALL' },
+      { s: 1, name: '[VERSE] @128-Bm NIGHTFALL' },
+      { s: 2, name: '[CHORUS] @128-Bm NIGHTFALL' },
     ]);
   });
 });

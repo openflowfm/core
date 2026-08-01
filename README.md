@@ -11,7 +11,7 @@ src/trackColumns.ts  Live's flat track list → grid columns + group headers
 src/gridRange.ts     block selection + active-cell movement over the columns
 src/ops.ts           building clip writes, and reversing them
 src/roles.ts         scene roles: the [role] tag, and scene writes
-src/sceneTitle.ts    the rest of the scene name — {song} {bpm} {key}
+src/sceneTitle.ts    the rest of the scene name — @{bpm}-{key} {SONG}
 src/namePattern.ts   patterns that can be read back: format, parse, validate
 src/derive.ts        the set → the mapping, by reversing the pattern
 src/songRows.ts      songs → grid rows + song headers, and what folding hides
@@ -181,7 +181,7 @@ happening is a lie about cost.
 scene, stored as a bracketed tag in the scene's own name:
 
 ```
-Nightfall 128 Bm [chorus]
+[CHORUS] @128-Bm NIGHTFALL
 ```
 
 **The set is the storage, and that's the design.** Scenes have no stable id in the LOM,
@@ -190,12 +190,9 @@ an inserted scene — or by name, at which point the name is already the identit
 file buys nothing. In the name, the role travels with the `.als` to the gig laptop and is
 visible in Live itself.
 
-**The tag is bracketed rather than a bare trailing word**, and this is the part worth
-defending. The title's own last token is already spoken for — it's `{key}` — so
-`Nightfall 128 Bm` versus a bare-word role is genuinely ambiguous. Worse, a bare word
-could only be recognised by matching against the
-vocabulary — so renaming a role from `jam` to `solo` would make every scene using it
-silently roleless. A tag stays visibly *there* when its name is unknown, which is the
+**The tag is bracketed rather than a bare word**, and this is the part worth defending.
+A bare word could only be recognised by matching against the vocabulary — so renaming a
+role from `jam` to `solo` would make every scene using it silently roleless. A tag stays visibly *there* when its name is unknown, which is the
 difference between a failure you can see and one that just loses data. `ROLE_CHARS` is
 deliberately narrow for the same reason: a scene may carry brackets of its own
 (`[alt mix/b]`), and only things shaped like role names are read as roles.
@@ -227,23 +224,48 @@ undoable and there's no counterpart to `countUnrevertableColors`.
 **`sceneTitle.ts`** — everything in a scene name *except* the role tag:
 
 ```
-Nightfall 128 Bm [chorus]
-└── song ──┘ │   └ role ┘     roles.ts owns the tag
-     │       └ key
-     └ bpm
+[CHORUS] @128-Bm NIGHTFALL
+ └ role┘  │   │  └ song ┘     roles.ts owns the tag
+          │   └ key
+          └ bpm
 ```
 
-Three optional parts in that order. `roles.ts` owns the tag, this owns what comes
-before it, and `titleOps` composes them — it rewrites the title and puts the scene's
-own role back on, so renaming a song across eighteen scenes doesn't disturb the roles
-you assigned them.
+Three optional parts in that order. `roles.ts` owns the tag, this owns what follows it,
+and `titleOps` composes them — it rewrites the title and puts the scene's own role back
+on, so renaming a song across eighteen scenes doesn't disturb the roles you assigned them.
 
-**Parsing is anchored at the end and never guesses in the middle.** `bpm` and `key` are
-recognised only as trailing tokens of exactly the right shape, so `Arp Jam 2` keeps its
-whole title rather than having the `2` read as a tempo. The property that falls out and
-is worth relying on: **parse and format round-trip.** A title this can't decompose comes
-back byte-identical rather than rearranged, which is what makes it safe to run a patch
-over a name nobody meant to restructure. There's a test per shape for exactly that.
+**Role first, facts second, name last**, so a column of scene names reads as structure
+rather than as a list of titles. The cost is real and worth knowing: Live's own narrow
+scene column now truncates the *name* rather than the metadata. Our grid lifts the role
+into a chip, so it only bites in Live.
+
+**Two characters do all the delimiting, and neither is decoration.** `@` opens the facts
+from the front — it can't appear in `ROLE_CHARS` and won't start a title, so the group is
+identifiable before you've read any of it, which is what makes a closing bracket
+unnecessary. `-` joins bpm to key and **drops with whichever is missing**, because after
+the `@` a digit begins a bpm and a letter begins a key: `@128-Bm`, `@128` and `@Bm` are
+all distinguishable with nothing further. That asymmetry with the role's brackets is
+deliberate — a role is recognised by *vocabulary* and so must stay visible when its name
+is unknown; a fact is recognised by *shape* and can't fail the same way.
+
+**Parsing is anchored at the front and never guesses in the middle.** The facts are read
+only from a leading `@` group, so `Arp Jam 2` keeps its whole title rather than having the
+`2` read as a tempo, and `Em Dash` keeps its whole title rather than having `Em` read as a
+key. The property worth relying on: **parse and format round-trip**, modulo case. A title
+this can't decompose comes back with only its capitalisation changed rather than
+rearranged, which is what makes it safe to run a patch over a name nobody meant to
+restructure. There's a test per shape for exactly that.
+
+**The song is written in caps and read case-insensitively.** `songKey` already folds case,
+so `NIGHTFALL` and `Nightfall` are one song and the uppercase is presentation rather than
+identity — which is exactly what stops the convention change from splitting the library in
+two while a set is half-converted.
+
+`parseTitle` also still reads the **old** convention's trailing `128 Bm`. That's the
+migration path: a set named the previous way keeps showing its facts, and any rename
+converts it rather than flattening the bpm and key into the title. A no-op patch is
+therefore not a no-op rename on an old-convention scene, which is the one gesture that
+moves a scene onto the new convention without changing what it says.
 
 `TitlePatch` distinguishes **absent from empty**, and that distinction is the feature:
 an omitted field is left alone on every scene, an empty string clears that part.
@@ -264,7 +286,7 @@ generalisation `sceneTitle.ts` is a hand-written special case of. A pattern comp
 into a formatter, a parser, and a verdict on whether it was safe to compile at all.
 
 **The parser is the point.** Writing names is easy; the scheme rests on being able to
-look at `Nightfall 128 Bm [chorus]` six months later and recover which song and role it
+look at `[CHORUS] @128-Bm NIGHTFALL` six months later and recover which song and role it
 belongs to with nothing stored on the side. That's what lets the mapping live in the set,
 need no ids, and travel with the `.als`.
 
@@ -300,6 +322,52 @@ Two things follow, both load-bearing:
   `Nightfall] 128` when the role is absent, which is ugly and *does* round-trip, so it's
   allowed. A pattern its author regrets is their problem; one the app can't read back is
   ours.
+
+### Optional groups
+
+`( … )?` marks a run that appears together or not at all, carrying its own delimiters
+with it. It exists because the rule an optional *token* follows — take the literal before
+you, and the one after you only at the very end of the pattern — **cannot express a
+bracketed field in the middle of a name**. `[{role?}] {song}` formats a role-less scene
+as `] NIGHTFALL`: the opening bracket leaves with the token and the closing one is
+stranded. Every convention that puts the title last needs this.
+
+Inside a group, a literal with a token on **both** sides is a *separator* and survives
+only while both sides do; a literal at the group's edge stands as long as the group does.
+That one rule is what makes `@128-Bm`, `@128` and `@Bm` fall out of a single pattern
+rather than three.
+
+Groups don't nest. One level covers everything the scheme needs, and a nested version
+would need a story for what a half-present inner group means that nobody has a use for.
+
+Two smaller decisions worth not re-litigating:
+
+- **`(` only opens a group when there's a matching `)?`.** Otherwise it's a literal,
+  which is what lets `{song} (live)` work without this file inventing an escape syntax.
+- **A space next to a group compiles to `\s*`, and only next to a group.** The group can
+  vanish, and then there's nothing for the space to sit between. Relaxing *every* space
+  breaks a pattern whose tokens are all required — `{song} {role}` with a lazy `{song}`
+  reads "Nightfall chorus" as song `N` and role `ightfall chorus` the moment the space
+  between them stops being mandatory. There's a test holding that down.
+
+### Reading more than one convention
+
+`derive` takes a list of patterns and reads each name with **whichever gets the most out
+of it** — not the first that matches. That's forced rather than chosen: every scene
+pattern is *total*, because `{song}` is free and everything else optional, so any pattern
+matches any name by swallowing it whole. First-match-wins would consult only the first
+entry, and the current convention would read `Nightfall 128 Bm [verse]` as one long song
+name.
+
+Counting fields is the same rule the pattern language already applies *within* a pattern
+— a name is read as filling as many parts as it can — lifted one level. Ties go to the
+earlier pattern, so the current convention wins a genuine ambiguity.
+
+This is what makes a convention change survivable at all. The mapping lives in the names,
+so switching patterns outright would make every scene in an already-named set unmapped at
+once: the songs would vanish from the grid and there would be nothing left to select in
+order to rename them. Instead a set converts scene by scene, and a half-converted song
+still collects into one entry because song identity folds case.
 
 `parse` returns `null` rather than a partial result. During the mapping pass `null` is
 the common and correct answer — this scene isn't named by the scheme yet — while a

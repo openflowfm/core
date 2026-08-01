@@ -9,12 +9,12 @@ const scene = (i: number, name: string, tempo = -1): SceneInput => ({ i, name, t
 /** Two songs back to back, then the first one again as a reprise. */
 const SET = derive(
   [
-    scene(0, 'Nightfall 128 Bm [intro]'),
-    scene(1, 'Nightfall 128 Bm [verse]'),
-    scene(2, 'Nightfall 128 Bm [chorus]'),
-    scene(3, 'Glass Tunnel 124 F#m [intro]'),
-    scene(4, 'Glass Tunnel 124 F#m [verse]'),
-    scene(5, 'Nightfall 128 Bm [outro]'),
+    scene(0, '[INTRO] @128-Bm NIGHTFALL'),
+    scene(1, '[VERSE] @128-Bm NIGHTFALL'),
+    scene(2, '[CHORUS] @128-Bm NIGHTFALL'),
+    scene(3, '[INTRO] @124-F#m GLASS TUNNEL'),
+    scene(4, '[VERSE] @124-F#m GLASS TUNNEL'),
+    scene(5, '[OUTRO] @128-Bm NIGHTFALL'),
   ],
   PATTERN,
 );
@@ -29,7 +29,7 @@ describe('headers', () => {
     // Heading only the first block would visually attach scene 5 to Glass
     // Tunnel, which is the opposite of segmenting the grid.
     const h = songRows(SET).headers.get(5)!;
-    expect(h).toMatchObject({ song: 'Nightfall', block: 2, blocks: 2, from: 5, to: 5 });
+    expect(h).toMatchObject({ song: 'NIGHTFALL', block: 2, blocks: 2, from: 5, to: 5 });
   });
 
   it('numbers blocks and counts scenes per block, not per song', () => {
@@ -49,7 +49,7 @@ describe('headers', () => {
 
   it('renders a disagreement as every value, and flags it', () => {
     const d = derive(
-      [scene(0, 'Nightfall 128 Bm [a]'), scene(1, 'Nightfall 130 Bm [b]')],
+      [scene(0, '[A] @128-Bm NIGHTFALL'), scene(1, '[B] @130-Bm NIGHTFALL')],
       PATTERN,
     );
     const h = songRows(d).headers.get(0)!;
@@ -58,7 +58,7 @@ describe('headers', () => {
   });
 
   it('leaves a fact the set never states empty rather than inventing one', () => {
-    const d = derive([scene(0, 'Nightfall [intro]')], PATTERN);
+    const d = derive([scene(0, '[INTRO] NIGHTFALL')], PATTERN);
     expect(songRows(d).headers.get(0)).toMatchObject({ bpm: '', key: '', tempo: '' });
   });
 

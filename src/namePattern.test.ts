@@ -3,6 +3,7 @@ import {
   compilePattern,
   DEFAULT_SCENE_PATTERN,
   describePatternError,
+  LEGACY_SCENE_PATTERN,
   patternErrors,
   SCENE_TOKENS,
   type TokenRegistry,
@@ -23,9 +24,18 @@ const compile = (p: string, r?: TokenRegistry) => {
 
 describe('accepting and rejecting patterns', () => {
   it('compiles the default scene pattern — App.tsx asserts this with a !', () => {
-    expect(DEFAULT_SCENE_PATTERN).toBe('{song} {bpm?} {key?} [{role?}]');
+    expect(DEFAULT_SCENE_PATTERN).toBe('([{role}])? (@{bpm?}-{key?})? {song}');
     expect(patternErrors(DEFAULT_SCENE_PATTERN)).toEqual([]);
     expect(compilePattern(DEFAULT_SCENE_PATTERN)).not.toBeNull();
+  });
+
+  it('still compiles the legacy pattern — existing sets are named that way', () => {
+    // Retiring this would make every scene in an already-named set unmapped the
+    // moment the convention changed, leaving nothing to select in order to
+    // rename it. `derive.ts` falls back to it, so it has to keep working.
+    expect(LEGACY_SCENE_PATTERN).toBe('{song} {bpm?} {key?} [{role?}]');
+    expect(patternErrors(LEGACY_SCENE_PATTERN)).toEqual([]);
+    expect(compilePattern(LEGACY_SCENE_PATTERN)).not.toBeNull();
   });
 
   it('accepts the shapes the scheme is built on', () => {
@@ -105,17 +115,17 @@ describe('accepting and rejecting patterns', () => {
   });
 });
 
-describe('the shipped convention: {song} {bpm?} {key?} [{role?}]', () => {
+describe('the shipped convention: ([{role}])? (@{bpm?}-{key?})? {song}', () => {
   const c = compile(FULL);
 
   it('writes a full name', () => {
     expect(c.format({ song: 'Nightfall', bpm: '128', key: 'Bm', role: 'chorus' })).toBe(
-      'Nightfall 128 Bm [chorus]',
+      '[chorus] @128-Bm Nightfall',
     );
   });
 
   it('reads a full name back', () => {
-    expect(c.parse('Nightfall 128 Bm [chorus]')).toEqual({
+    expect(c.parse('[chorus] @128-Bm Nightfall')).toEqual({
       song: 'Nightfall',
       bpm: '128',
       key: 'Bm',
@@ -124,7 +134,7 @@ describe('the shipped convention: {song} {bpm?} {key?} [{role?}]', () => {
   });
 
   it('keeps a multi-word song together', () => {
-    expect(c.parse('Glass Tunnel 124 F#m [post chorus]')).toEqual({
+    expect(c.parse('[post chorus] @124-F#m Glass Tunnel')).toEqual({
       song: 'Glass Tunnel',
       bpm: '124',
       key: 'F#m',
@@ -133,37 +143,50 @@ describe('the shipped convention: {song} {bpm?} {key?} [{role?}]', () => {
   });
 
   it('drops a missing role and its brackets, not just the value', () => {
-    // "Nightfall 128 Bm []" would be the naive result, and it wouldn't parse.
+    // "[] @128-Bm Nightfall" would be the naive result, and it wouldn't parse.
     expect(c.format({ song: 'Nightfall', bpm: '128', key: 'Bm' })).toBe(
-      'Nightfall 128 Bm',
+      '@128-Bm Nightfall',
     );
   });
 
-  it('drops missing bpm and key without leaving a double space', () => {
-    expect(c.format({ song: 'Nightfall', role: 'chorus' })).toBe('Nightfall [chorus]');
+  it('drops the whole @ group when it has nothing to say', () => {
+    expect(c.format({ song: 'Nightfall', role: 'chorus' })).toBe('[chorus] Nightfall');
+    expect(c.format({ song: 'Nightfall' })).toBe('Nightfall');
   });
 
-  it('fills as many parts as it can rather than swallowing them into the song', () => {
-    // The stated resolution rule. "Nightfall 128" is also a legal song name,
-    // and this is why it isn't read as one.
-    expect(c.parse('Nightfall 128')).toEqual({ song: 'Nightfall', bpm: '128' });
-    expect(c.parse('Nightfall Bm')).toEqual({ song: 'Nightfall', key: 'Bm' });
-    expect(c.parse('Nightfall [chorus]')).toEqual({ song: 'Nightfall', role: 'chorus' });
+  it('drops the hyphen with whichever fact is missing', () => {
+    // The separator rule, and the reason the facts need no bracket of their
+    // own: after the @, a digit is a bpm and a letter is a key, so all three
+    // shapes are distinguishable with one character of punctuation.
+    expect(c.format({ song: 'Nightfall', bpm: '128' })).toBe('@128 Nightfall');
+    expect(c.format({ song: 'Nightfall', key: 'Bm' })).toBe('@Bm Nightfall');
+  });
+
+  it('reads each of those back unambiguously', () => {
+    expect(c.parse('@128 Nightfall')).toEqual({ song: 'Nightfall', bpm: '128' });
+    expect(c.parse('@Bm Nightfall')).toEqual({ song: 'Nightfall', key: 'Bm' });
+    expect(c.parse('@128-Bm Nightfall')).toEqual({
+      song: 'Nightfall',
+      bpm: '128',
+      key: 'Bm',
+    });
   });
 
   it('reads a song that never followed the convention as all song', () => {
     expect(c.parse('Arp Jam 2')).toEqual({ song: 'Arp Jam 2' });
     expect(c.parse('Audio 3')).toEqual({ song: 'Audio 3' });
+    // No @, so nothing here is a fact — "Em Dash" is a title, not a key.
+    expect(c.parse('Em Dash')).toEqual({ song: 'Em Dash' });
   });
 
-  it('round-trips every shape sceneTitle.ts handles today', () => {
+  it('round-trips every shape the convention can produce', () => {
     const names = [
-      'Nightfall 128 Bm [chorus]',
-      'Glass Tunnel 124 F#m [post chorus]',
-      'Nightfall 128 Bm',
-      'Nightfall 128',
-      'Nightfall Bm',
-      'Nightfall [verse]',
+      '[chorus] @128-Bm Nightfall',
+      '[post chorus] @124-F#m Glass Tunnel',
+      '@128-Bm Nightfall',
+      '[chorus] @128 Nightfall',
+      '[chorus] @Bm Nightfall',
+      '[verse] Nightfall',
       'Nightfall',
       'Arp Jam 2',
       'Audio 3',
@@ -179,6 +202,80 @@ describe('the shipped convention: {song} {bpm?} {key?} [{role?}]', () => {
     // A half-read name would attach a scene to the wrong song, which is worse
     // than not attaching it at all.
     expect(c.parse('')).toBeNull();
+  });
+});
+
+describe('the legacy convention: {song} {bpm?} {key?} [{role?}]', () => {
+  // Still compiled and still parsed, because an existing set is named this way
+  // and derivation is how the app finds its songs at all.
+  const c = compile(LEGACY_SCENE_PATTERN);
+
+  it('reads a full name back', () => {
+    expect(c.parse('Nightfall 128 Bm [chorus]')).toEqual({
+      song: 'Nightfall',
+      bpm: '128',
+      key: 'Bm',
+      role: 'chorus',
+    });
+  });
+
+  it('fills as many parts as it can rather than swallowing them into the song', () => {
+    expect(c.parse('Nightfall 128')).toEqual({ song: 'Nightfall', bpm: '128' });
+    expect(c.parse('Nightfall Bm')).toEqual({ song: 'Nightfall', key: 'Bm' });
+  });
+
+  it('round-trips every shape it ever wrote', () => {
+    for (const name of [
+      'Nightfall 128 Bm [chorus]',
+      'Glass Tunnel 124 F#m [post chorus]',
+      'Nightfall 128 Bm',
+      'Nightfall 128',
+      'Nightfall Bm',
+      'Nightfall [verse]',
+      'Nightfall',
+      'Arp Jam 2',
+    ]) {
+      const parsed = c.parse(name);
+      expect(parsed, name).not.toBeNull();
+      expect(c.format(parsed!), name).toBe(name);
+    }
+  });
+});
+
+describe('optional groups', () => {
+  it('takes its own delimiters out with it', () => {
+    // The failure that forced groups to exist: an optional token absorbs the
+    // literal *before* it, and the one after it only at the very end of the
+    // pattern — so a bracketed field mid-name strands its closing bracket.
+    const loose = compile('[{role?}] {song}');
+    expect(loose.format({ song: 'Nightfall' })).toBe('] Nightfall');
+
+    const grouped = compile('([{role}])? {song}');
+    expect(grouped.format({ song: 'Nightfall' })).toBe('Nightfall');
+    expect(grouped.format({ song: 'Nightfall', role: 'chorus' })).toBe(
+      '[chorus] Nightfall',
+    );
+  });
+
+  it('keeps an edge literal but drops an internal separator', () => {
+    const c = compile('(@{bpm?}-{key?})? {song}');
+    expect(c.format({ song: 'X', bpm: '128', key: 'Bm' })).toBe('@128-Bm X');
+    expect(c.format({ song: 'X', bpm: '128' })).toBe('@128 X'); // '-' is a separator
+    expect(c.format({ song: 'X', key: 'Bm' })).toBe('@Bm X');
+    expect(c.format({ song: 'X' })).toBe('X'); // '@' goes with the group
+  });
+
+  it('rejects a free token inside a group, like anywhere else', () => {
+    // Absent and empty are indistinguishable for free text wherever it sits.
+    expect(patternErrors('({song})? {bpm}')).toContainEqual({
+      kind: 'optional-free',
+      token: 'song',
+    });
+  });
+
+  it('treats an unclosed ( as a literal rather than failing to compile', () => {
+    const c = compile('{song} (live)');
+    expect(c.format({ song: 'Nightfall' })).toBe('Nightfall (live)');
   });
 });
 
@@ -212,7 +309,7 @@ describe('format', () => {
   const c = compile(FULL);
 
   it('accepts numbers as well as strings', () => {
-    expect(c.format({ song: 'Nightfall', bpm: 128 })).toBe('Nightfall 128');
+    expect(c.format({ song: 'Nightfall', bpm: 128 })).toBe('@128 Nightfall');
   });
 
   it('treats null, undefined and blank the same way', () => {
@@ -274,11 +371,14 @@ describe('compilePattern', () => {
   });
 
   it('reports the tokens it found, in order, with their optionality', () => {
+    // Pattern order, so the capture groups line up with it. A token inside an
+    // optional group reports as optional however it's written — the group is
+    // what makes it droppable.
     expect(compile(FULL).tokens).toEqual([
-      { name: 'song', optional: false },
+      { name: 'role', optional: true },
       { name: 'bpm', optional: true },
       { name: 'key', optional: true },
-      { name: 'role', optional: true },
+      { name: 'song', optional: false },
     ]);
   });
 });
