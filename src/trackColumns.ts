@@ -19,7 +19,12 @@ export interface GroupableTrack {
 
 /** One rendered grid column. */
 export type Column<T extends GroupableTrack> =
-  | { kind: 'track'; track: T }
+  | {
+      kind: 'track';
+      track: T;
+      /** The immediate group drawn above this column, or null when ungrouped. */
+      group: T | null;
+    }
   | {
       kind: 'folded';
       group: T;
@@ -96,7 +101,11 @@ export function buildColumns<T extends GroupableTrack>(
       }
       continue;
     }
-    out.push({ kind: 'track', track: t });
+    out.push({
+      kind: 'track',
+      track: t,
+      group: t.groupIndex >= 0 ? (index.get(t.groupIndex) ?? null) : null,
+    });
   }
   return out;
 }
@@ -121,8 +130,12 @@ export function headerSpans<T extends GroupableTrack>(
   const out: HeaderSpan<T>[] = [];
 
   for (const c of columns) {
-    const parentIndex = c.kind === 'track' ? c.track.groupIndex : c.group.groupIndex;
-    const group = parentIndex >= 0 ? (index.get(parentIndex) ?? null) : null;
+    const group =
+      c.kind === 'track'
+        ? c.group
+        : c.group.groupIndex >= 0
+          ? (index.get(c.group.groupIndex) ?? null)
+          : null;
     const last = out[out.length - 1];
     if (last && last.group === group) last.span++;
     else out.push({ group, span: 1 });

@@ -43,6 +43,19 @@ describe('buildColumns', () => {
     ]);
   });
 
+  it('carries the group shown above each open track column', () => {
+    const groups = buildColumns(FLAT, new Set()).map((c) =>
+      c.kind === 'track' ? (c.group?.name ?? null) : c.group.name,
+    );
+    expect(groups).toEqual(['Pads', 'Pads', 'Drums', null]);
+  });
+
+  it('uses the immediate group for a nested open track', () => {
+    const cols = buildColumns(NESTED, new Set());
+    expect(cols[0]?.kind).toBe('track');
+    if (cols[0]?.kind === 'track') expect(cols[0].group?.name).toBe('Inner');
+  });
+
   it('replaces a collapsed group with one column and hides its members', () => {
     expect(names(buildColumns(FLAT, new Set([0])))).toEqual([
       '[Pads]',
