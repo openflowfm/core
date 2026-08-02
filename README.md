@@ -120,6 +120,14 @@ the grid. **Collapsing, though, is keyed by song**: folding "Nightfall" folds al
 reprise included. Two blocks then show two headers, which is honest, because the set
 really does contain that song twice.
 
+`blockFills` answers the other half of what a folded song shows: per block, how many of
+its scenes hold a clip in each track. **Keyed by block, not by song**, even though folding
+is keyed by song — a reprise that drops the pads is a genuinely different thing to look at
+than the first run, and averaging the two into one strip would hide exactly the difference
+the second header exists to show. It's one pass over the clips rather than one per block,
+because a full set is thousands of clips and a hundred songs and the obvious nesting is
+their product.
+
 The header also carries the song's **color**, as `colorIndex` plus `colorClash`. Two
 fields rather than one because "uncolored" and "colored inconsistently" are different
 answers and only one of them is worth reporting: a header that showed the first scene's

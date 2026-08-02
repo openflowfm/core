@@ -12,7 +12,7 @@
 // including a reprise sixty scenes later. Two blocks then show two headers,
 // which is honest — the set really does contain that song twice.
 
-import { songKey, type Derivation } from './derive.js';
+import { songKey, type Derivation, type SongBlock } from './derive.js';
 
 /**
  * One header row. Every field is a primitive on purpose: this crosses into a
@@ -114,6 +114,51 @@ export function songRows(
   const rows = derivation.scenes.map((sc) => sc.s).filter((s) => !hidden.has(s));
 
   return { headers, hidden, rows };
+}
+
+/** The clip fields a fill needs. Structurally typed over `BSV.Clip`. */
+export interface FilledCell {
+  t: number;
+  s: number;
+}
+
+/**
+ * Per block, how many of its scenes hold a clip in each track.
+ *
+ * This is what a folded song can show in place of the rows it's hiding: which
+ * tracks the song actually uses, aligned under the track columns, so a set
+ * folded to a table of contents still says *what's in* each entry.
+ *
+ * **Keyed by block rather than by song**, even though folding is keyed by song.
+ * A song in two runs shows two headers, and a reprise that drops the pads is a
+ * genuinely different thing to look at than the first run — averaging the two
+ * into one strip would hide the difference the second header exists to show.
+ * `from` is the key because it's what `headers` is keyed by, and no two blocks
+ * can start on the same scene.
+ *
+ * One pass over the clips rather than one per block: a full set is thousands of
+ * clips and a hundred songs, and the obvious nesting is their product.
+ */
+export function blockFills(
+  clips: readonly FilledCell[],
+  blocks: readonly SongBlock[],
+): Map<number, Map<number, number>> {
+  // scene → the block that owns it. Blocks are disjoint runs, so this is a
+  // lookup rather than a search.
+  const owner = new Map<number, number>();
+  const fills = new Map<number, Map<number, number>>();
+  for (const b of blocks) {
+    fills.set(b.from, new Map());
+    for (let s = b.from; s <= b.to; s++) owner.set(s, b.from);
+  }
+
+  for (const c of clips) {
+    const from = owner.get(c.s);
+    if (from === undefined) continue; // a scene in no song — nothing to fold
+    const byTrack = fills.get(from)!;
+    byTrack.set(c.t, (byTrack.get(c.t) ?? 0) + 1);
+  }
+  return fills;
 }
 
 /** Every song key in the set — what "collapse all" needs. */

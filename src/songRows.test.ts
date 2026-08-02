@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { allSongKeys, songRows } from './songRows.js';
+import { allSongKeys, blockFills, songRows } from './songRows.js';
 import { derive, type SceneInput } from './derive.js';
 import { compilePattern, DEFAULT_SCENE_PATTERN } from './namePattern.js';
 
@@ -154,6 +154,71 @@ describe('collapsing', () => {
     const d = derive([scene(0, 'Nightfall 128 Bm'), scene(1, 'Audio 3')], strict);
     const { rows } = songRows(d, new Set(allSongKeys(d)));
     expect(rows).toEqual([1]);
+  });
+});
+
+describe('blockFills', () => {
+  /** Nightfall over scenes 0–2, Glass Tunnel 3–4, Nightfall again at 5. */
+  const BLOCKS = [
+    { from: 0, to: 2 },
+    { from: 3, to: 4 },
+    { from: 5, to: 5 },
+  ];
+
+  it('counts, per block, how many of its scenes hold a clip in each track', () => {
+    const fills = blockFills(
+      [
+        { t: 0, s: 0 },
+        { t: 0, s: 1 },
+        { t: 0, s: 2 },
+        { t: 4, s: 1 },
+      ],
+      BLOCKS,
+    );
+    expect([...fills.get(0)!]).toEqual([
+      [0, 3],
+      [4, 1],
+    ]);
+  });
+
+  it('gives an empty map to a block whose scenes hold nothing', () => {
+    // Not `undefined` — a folded song with no clips is a real answer, and the
+    // strip should read as empty rather than as missing.
+    const fills = blockFills([{ t: 0, s: 0 }], BLOCKS);
+    expect(fills.get(3)).toEqual(new Map());
+  });
+
+  it('keeps a reprise separate from the first run', () => {
+    // Both blocks are the same song and fold together, but a reprise that drops
+    // the pads is exactly what a second header is there to show.
+    const fills = blockFills(
+      [
+        { t: 0, s: 0 },
+        { t: 7, s: 0 },
+        { t: 0, s: 5 },
+      ],
+      BLOCKS,
+    );
+    expect([...fills.get(0)!.keys()].sort((a, b) => a - b)).toEqual([0, 7]);
+    expect([...fills.get(5)!.keys()]).toEqual([0]);
+  });
+
+  it('ignores a clip in a scene no block owns', () => {
+    const fills = blockFills([{ t: 0, s: 99 }], BLOCKS);
+    expect([...fills.values()].every((m) => m.size === 0)).toBe(true);
+  });
+
+  it('has an entry for every block, and only for blocks', () => {
+    expect([...blockFills([], BLOCKS).keys()]).toEqual([0, 3, 5]);
+    expect(blockFills([], []).size).toBe(0);
+  });
+
+  it('takes its blocks straight off a derivation', () => {
+    const fills = blockFills(
+      [{ t: 2, s: 4 }],
+      SET.songs.flatMap((s) => s.blocks),
+    );
+    expect(fills.get(3)!.get(2)).toBe(1);
   });
 });
 
