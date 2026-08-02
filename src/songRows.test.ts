@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { allSongKeys, blockFills, songRows } from './songRows.js';
+import { allSongKeys, blockFills, blockRoles, songRows } from './songRows.js';
 import { derive, type SceneInput } from './derive.js';
 import { compilePattern, DEFAULT_SCENE_PATTERN } from './namePattern.js';
 
@@ -219,6 +219,113 @@ describe('blockFills', () => {
       SET.songs.flatMap((s) => s.blocks),
     );
     expect(fills.get(3)!.get(2)).toBe(1);
+  });
+});
+
+describe('blockRoles', () => {
+  /** The same three blocks `blockFills` uses. */
+  const BLOCKS = [
+    { from: 0, to: 2 },
+    { from: 3, to: 4 },
+    { from: 5, to: 5 },
+  ];
+  const named = (i: number, name: string) => ({ i, name });
+
+  it('lists a block’s roles in the order they first appear', () => {
+    // First appearance is musical order, which is what makes the strip read as
+    // the arrangement rather than as an alphabetised set.
+    const roles = blockRoles(
+      [
+        named(0, '[INTRO] NIGHTFALL'),
+        named(1, '[VERSE] NIGHTFALL'),
+        named(2, '[CHORUS] NIGHTFALL'),
+      ],
+      BLOCKS,
+    );
+    expect(roles.get(0)!.map((r) => r.name)).toEqual(['INTRO', 'VERSE', 'CHORUS']);
+  });
+
+  it('counts the scenes carrying each role rather than repeating it', () => {
+    const roles = blockRoles(
+      [
+        named(0, '[VERSE] NIGHTFALL'),
+        named(1, '[CHORUS] NIGHTFALL'),
+        named(2, '[CHORUS] NIGHTFALL'),
+      ],
+      BLOCKS,
+    );
+    expect(roles.get(0)).toEqual([
+      { name: 'VERSE', scenes: 1 },
+      { name: 'CHORUS', scenes: 2 },
+    ]);
+  });
+
+  it('folds case and keeps the spelling the block saw first', () => {
+    // Same rule roleKey applies everywhere else: a role typed by hand in Live
+    // is the same role, and showing it twice would be a lie about the song.
+    const roles = blockRoles(
+      [named(0, '[Chorus] NIGHTFALL'), named(1, '[CHORUS] NIGHTFALL')],
+      BLOCKS,
+    );
+    expect(roles.get(0)).toEqual([{ name: 'Chorus', scenes: 2 }]);
+  });
+
+  it('reads roles by tag, not by the pattern that named the scene', () => {
+    // The pattern reads this whole name as one long title, but the tag is
+    // visibly there, and the scene row shows a chip for it. The header has to
+    // agree with what's on screen.
+    expect(derive([scene(0, 'NIGHTFALL [alt mix]')], PATTERN).scenes[0]!.role).toBe(null);
+    const roles = blockRoles([named(0, 'NIGHTFALL [alt mix]')], BLOCKS);
+    expect(roles.get(0)!.map((r) => r.name)).toEqual(['alt mix']);
+  });
+
+  it('keeps a reprise separate from the first run', () => {
+    // A chorus-only reprise is a different shape from the run that introduced
+    // it, which is the whole reason this is keyed by block.
+    const roles = blockRoles(
+      [
+        named(0, '[INTRO] NIGHTFALL'),
+        named(1, '[VERSE] NIGHTFALL'),
+        named(5, '[CHORUS] NIGHTFALL'),
+      ],
+      BLOCKS,
+    );
+    expect(roles.get(0)!.map((r) => r.name)).toEqual(['INTRO', 'VERSE']);
+    expect(roles.get(5)!.map((r) => r.name)).toEqual(['CHORUS']);
+  });
+
+  it('orders by scene, not by the order the snapshot arrived in', () => {
+    const roles = blockRoles(
+      [named(2, '[CHORUS] NIGHTFALL'), named(0, '[INTRO] NIGHTFALL')],
+      BLOCKS,
+    );
+    expect(roles.get(0)!.map((r) => r.name)).toEqual(['INTRO', 'CHORUS']);
+  });
+
+  it('gives an empty list to a block whose scenes carry no role', () => {
+    // Not `undefined` — a song nobody has tagged yet is a real answer, and the
+    // header should show no pills rather than read as missing.
+    const roles = blockRoles([named(3, 'GLASS TUNNEL')], BLOCKS);
+    expect(roles.get(3)).toEqual([]);
+  });
+
+  it('ignores a scene no block owns', () => {
+    const roles = blockRoles([named(99, '[CHORUS] STRAY')], BLOCKS);
+    expect([...roles.values()].every((r) => r.length === 0)).toBe(true);
+  });
+
+  it('has an entry for every block, and only for blocks', () => {
+    expect([...blockRoles([], BLOCKS).keys()]).toEqual([0, 3, 5]);
+    expect(blockRoles([], []).size).toBe(0);
+  });
+
+  it('takes its blocks straight off a derivation', () => {
+    const roles = blockRoles(
+      [named(0, '[INTRO] @128-Bm NIGHTFALL'), named(5, '[OUTRO] @128-Bm NIGHTFALL')],
+      SET.songs.flatMap((s) => s.blocks),
+    );
+    expect(roles.get(0)!.map((r) => r.name)).toEqual(['INTRO']);
+    expect(roles.get(5)!.map((r) => r.name)).toEqual(['OUTRO']);
   });
 });
 

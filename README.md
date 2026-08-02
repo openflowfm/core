@@ -128,6 +128,14 @@ the second header exists to show. It's one pass over the clips rather than one p
 because a full set is thousands of clips and a hundred songs and the obvious nesting is
 their product.
 
+`blockRoles` is the same shape again, for the song's **structure**: per block, which roles
+its scenes carry, in the order they first appear — intro, verse, chorus, outro. Keyed by
+block for the same reason, because a chorus-only reprise is a different shape from the run
+that introduced it. It reads roles with **`roleIn`, not the derivation's `{role}` token**,
+so a header summarises exactly the chips the scene rows below it show: the two can
+disagree — a name the pattern reads as one long title can still carry a bracketed tag —
+and agreeing with what's on screen matters more than agreeing with the pattern.
+
 The header also carries the song's **color**, as `colorIndex` plus `colorClash`. Two
 fields rather than one because "uncolored" and "colored inconsistently" are different
 answers and only one of them is worth reporting: a header that showed the first scene's

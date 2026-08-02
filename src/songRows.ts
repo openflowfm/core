@@ -13,6 +13,7 @@
 // which is honest — the set really does contain that song twice.
 
 import { songKey, type Derivation, type SongBlock } from './derive.js';
+import { roleIn, roleKey } from './roles.js';
 
 /**
  * One header row. Every field is a primitive on purpose: this crosses into a
@@ -123,6 +124,22 @@ export interface FilledCell {
 }
 
 /**
+ * Scene index → the block that owns it.
+ *
+ * Blocks are disjoint runs, so what would otherwise be a search per scene is a
+ * lookup. Shared by everything that summarises a block out of a flat list: a
+ * full set is thousands of clips and a hundred blocks, and the obvious nesting
+ * is their product.
+ */
+function ownerByScene(blocks: readonly SongBlock[]): Map<number, number> {
+  const owner = new Map<number, number>();
+  for (const b of blocks) {
+    for (let s = b.from; s <= b.to; s++) owner.set(s, b.from);
+  }
+  return owner;
+}
+
+/**
  * Per block, how many of its scenes hold a clip in each track.
  *
  * This is what a folded song can show in place of the rows it's hiding: which
@@ -136,21 +153,15 @@ export interface FilledCell {
  * `from` is the key because it's what `headers` is keyed by, and no two blocks
  * can start on the same scene.
  *
- * One pass over the clips rather than one per block: a full set is thousands of
- * clips and a hundred songs, and the obvious nesting is their product.
+ * One pass over the clips rather than one per block.
  */
 export function blockFills(
   clips: readonly FilledCell[],
   blocks: readonly SongBlock[],
 ): Map<number, Map<number, number>> {
-  // scene → the block that owns it. Blocks are disjoint runs, so this is a
-  // lookup rather than a search.
-  const owner = new Map<number, number>();
+  const owner = ownerByScene(blocks);
   const fills = new Map<number, Map<number, number>>();
-  for (const b of blocks) {
-    fills.set(b.from, new Map());
-    for (let s = b.from; s <= b.to; s++) owner.set(s, b.from);
-  }
+  for (const b of blocks) fills.set(b.from, new Map());
 
   for (const c of clips) {
     const from = owner.get(c.s);
@@ -159,6 +170,66 @@ export function blockFills(
     byTrack.set(c.t, (byTrack.get(c.t) ?? 0) + 1);
   }
   return fills;
+}
+
+/** The scene fields a role summary needs. Structurally typed over `BSV.Scene`. */
+export interface NamedScene {
+  i: number;
+  name: string;
+}
+
+/** One role a block uses, and how many of its scenes carry it. */
+export interface RoleTally {
+  /** In the spelling first seen in the block — `roleKey` is what deduped it. */
+  name: string;
+  scenes: number;
+}
+
+/**
+ * Per block, which roles its scenes carry, in the order they first appear.
+ *
+ * This is the song's *shape* — intro, verse, chorus, outro — which is the one
+ * thing a header can't say by naming the song and can't say by counting its
+ * scenes. Read straight out of the names, like everything else here.
+ *
+ * **Keyed by block, for the same reason `blockFills` is.** A reprise that is
+ * chorus-only is a different shape from the run that introduced it, and merging
+ * the two would hide exactly the difference the second header exists to show.
+ *
+ * **Roles come from `roleIn`, not from the derivation's `{role}` token**, so the
+ * header summarises precisely the chips the scene rows below it show. The two
+ * can disagree — a name the pattern reads as one long title can still carry a
+ * bracketed tag — and when they do, agreeing with what's on screen matters more
+ * than agreeing with the pattern.
+ *
+ * Order of first appearance is musical order, so scenes are walked ascending
+ * rather than in whatever order the snapshot arrived in.
+ */
+export function blockRoles(
+  scenes: readonly NamedScene[],
+  blocks: readonly SongBlock[],
+): Map<number, RoleTally[]> {
+  const owner = ownerByScene(blocks);
+  // Keyed by `roleKey` while tallying — `[Chorus]` and `[chorus]` are one role,
+  // and the block keeps whichever spelling it saw first.
+  const tallies = new Map<number, Map<string, RoleTally>>();
+  for (const b of blocks) tallies.set(b.from, new Map());
+
+  for (const sc of [...scenes].sort((a, b) => a.i - b.i)) {
+    const from = owner.get(sc.i);
+    if (from === undefined) continue;
+    const role = roleIn(sc.name);
+    if (role === null) continue;
+    const byRole = tallies.get(from)!;
+    const k = roleKey(role);
+    const seen = byRole.get(k);
+    if (seen) seen.scenes++;
+    else byRole.set(k, { name: role, scenes: 1 });
+  }
+
+  // A Map iterates in insertion order, which is the first-appearance order the
+  // header wants — so the strip of pills reads as the arrangement.
+  return new Map([...tallies].map(([from, byRole]) => [from, [...byRole.values()]]));
 }
 
 /** Every song key in the set — what "collapse all" needs. */
