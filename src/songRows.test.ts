@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { allSongKeys, blockFills, blockRoles, songRows } from './songRows.js';
+import {
+  allSongKeys,
+  blockTrackRoles,
+  mergeShapes,
+  songRows,
+} from './songRows.js';
 import { derive, type SceneInput } from './derive.js';
 import { compilePattern, DEFAULT_SCENE_PATTERN } from './namePattern.js';
 
@@ -157,175 +162,196 @@ describe('collapsing', () => {
   });
 });
 
-describe('blockFills', () => {
+describe('blockTrackRoles', () => {
   /** Nightfall over scenes 0–2, Glass Tunnel 3–4, Nightfall again at 5. */
   const BLOCKS = [
     { from: 0, to: 2 },
     { from: 3, to: 4 },
     { from: 5, to: 5 },
   ];
+  const NAMES = [
+    { i: 0, name: '[INTRO] NIGHTFALL' },
+    { i: 1, name: '[VERSE] NIGHTFALL' },
+    { i: 2, name: '[CHORUS] NIGHTFALL' },
+    { i: 3, name: '[INTRO] GLASS TUNNEL' },
+    { i: 4, name: '[VERSE] GLASS TUNNEL' },
+    { i: 5, name: '[CHORUS] NIGHTFALL' },
+  ];
 
-  it('counts, per block, how many of its scenes hold a clip in each track', () => {
-    const fills = blockFills(
+  it('says which sections of the song each track plays', () => {
+    // The point of the whole function: not that the pad is used, but that it's
+    // used in the choruses.
+    const shapes = blockTrackRoles(
+      [
+        { t: 0, s: 0 },
+        { t: 0, s: 2 },
+        { t: 4, s: 1 },
+      ],
+      NAMES,
+      BLOCKS,
+    );
+    expect(shapes.get(0)!.get(0)!.roles).toEqual([
+      { name: 'INTRO', scenes: 1 },
+      { name: 'CHORUS', scenes: 1 },
+    ]);
+    expect(shapes.get(0)!.get(4)!.roles).toEqual([{ name: 'VERSE', scenes: 1 }]);
+  });
+
+  it('orders roles by scene, not by the order clips arrived in', () => {
+    const shapes = blockTrackRoles(
+      [
+        { t: 0, s: 2 },
+        { t: 0, s: 0 },
+      ],
+      NAMES,
+      BLOCKS,
+    );
+    expect(shapes.get(0)!.get(0)!.roles.map((r) => r.name)).toEqual(['INTRO', 'CHORUS']);
+  });
+
+  it('counts the scenes of each role rather than repeating it', () => {
+    const shapes = blockTrackRoles(
       [
         { t: 0, s: 0 },
         { t: 0, s: 1 },
         { t: 0, s: 2 },
-        { t: 4, s: 1 },
+      ],
+      [
+        { i: 0, name: '[CHORUS] NIGHTFALL' },
+        { i: 1, name: '[CHORUS] NIGHTFALL' },
+        { i: 2, name: '[VERSE] NIGHTFALL' },
       ],
       BLOCKS,
     );
-    expect([...fills.get(0)!]).toEqual([
-      [0, 3],
-      [4, 1],
+    expect(shapes.get(0)!.get(0)!.roles).toEqual([
+      { name: 'CHORUS', scenes: 2 },
+      { name: 'VERSE', scenes: 1 },
     ]);
   });
 
-  it('gives an empty map to a block whose scenes hold nothing', () => {
-    // Not `undefined` — a folded song with no clips is a real answer, and the
-    // strip should read as empty rather than as missing.
-    const fills = blockFills([{ t: 0, s: 0 }], BLOCKS);
-    expect(fills.get(3)).toEqual(new Map());
+  it('folds case and keeps the spelling from the earliest scene', () => {
+    // Earliest scene, not first clip seen — the snapshot walks tracks, so a
+    // later scene's spelling can arrive first.
+    const shapes = blockTrackRoles(
+      [
+        { t: 0, s: 1 },
+        { t: 0, s: 0 },
+      ],
+      [
+        { i: 0, name: '[Chorus] NIGHTFALL' },
+        { i: 1, name: '[CHORUS] NIGHTFALL' },
+      ],
+      BLOCKS,
+    );
+    expect(shapes.get(0)!.get(0)!.roles).toEqual([{ name: 'Chorus', scenes: 2 }]);
   });
 
-  it('keeps a reprise separate from the first run', () => {
-    // Both blocks are the same song and fold together, but a reprise that drops
-    // the pads is exactly what a second header is there to show.
-    const fills = blockFills(
+  it('counts clips on untagged scenes separately, and still counts them', () => {
+    // A set mid-mapping is mostly untagged scenes. A track used only there has
+    // to still read as used, or the header lies about what the song contains.
+    const shapes = blockTrackRoles(
       [
         { t: 0, s: 0 },
-        { t: 7, s: 0 },
-        { t: 0, s: 5 },
+        { t: 0, s: 1 },
       ],
-      BLOCKS,
-    );
-    expect([...fills.get(0)!.keys()].sort((a, b) => a - b)).toEqual([0, 7]);
-    expect([...fills.get(5)!.keys()]).toEqual([0]);
-  });
-
-  it('ignores a clip in a scene no block owns', () => {
-    const fills = blockFills([{ t: 0, s: 99 }], BLOCKS);
-    expect([...fills.values()].every((m) => m.size === 0)).toBe(true);
-  });
-
-  it('has an entry for every block, and only for blocks', () => {
-    expect([...blockFills([], BLOCKS).keys()]).toEqual([0, 3, 5]);
-    expect(blockFills([], []).size).toBe(0);
-  });
-
-  it('takes its blocks straight off a derivation', () => {
-    const fills = blockFills(
-      [{ t: 2, s: 4 }],
-      SET.songs.flatMap((s) => s.blocks),
-    );
-    expect(fills.get(3)!.get(2)).toBe(1);
-  });
-});
-
-describe('blockRoles', () => {
-  /** The same three blocks `blockFills` uses. */
-  const BLOCKS = [
-    { from: 0, to: 2 },
-    { from: 3, to: 4 },
-    { from: 5, to: 5 },
-  ];
-  const named = (i: number, name: string) => ({ i, name });
-
-  it('lists a block’s roles in the order they first appear', () => {
-    // First appearance is musical order, which is what makes the strip read as
-    // the arrangement rather than as an alphabetised set.
-    const roles = blockRoles(
       [
-        named(0, '[INTRO] NIGHTFALL'),
-        named(1, '[VERSE] NIGHTFALL'),
-        named(2, '[CHORUS] NIGHTFALL'),
+        { i: 0, name: 'NIGHTFALL' },
+        { i: 1, name: '[VERSE] NIGHTFALL' },
       ],
       BLOCKS,
     );
-    expect(roles.get(0)!.map((r) => r.name)).toEqual(['INTRO', 'VERSE', 'CHORUS']);
-  });
-
-  it('counts the scenes carrying each role rather than repeating it', () => {
-    const roles = blockRoles(
-      [
-        named(0, '[VERSE] NIGHTFALL'),
-        named(1, '[CHORUS] NIGHTFALL'),
-        named(2, '[CHORUS] NIGHTFALL'),
-      ],
-      BLOCKS,
-    );
-    expect(roles.get(0)).toEqual([
-      { name: 'VERSE', scenes: 1 },
-      { name: 'CHORUS', scenes: 2 },
-    ]);
-  });
-
-  it('folds case and keeps the spelling the block saw first', () => {
-    // Same rule roleKey applies everywhere else: a role typed by hand in Live
-    // is the same role, and showing it twice would be a lie about the song.
-    const roles = blockRoles(
-      [named(0, '[Chorus] NIGHTFALL'), named(1, '[CHORUS] NIGHTFALL')],
-      BLOCKS,
-    );
-    expect(roles.get(0)).toEqual([{ name: 'Chorus', scenes: 2 }]);
+    expect(shapes.get(0)!.get(0)).toEqual({
+      roles: [{ name: 'VERSE', scenes: 1 }],
+      untagged: 1,
+      scenes: 2,
+    });
   });
 
   it('reads roles by tag, not by the pattern that named the scene', () => {
     // The pattern reads this whole name as one long title, but the tag is
-    // visibly there, and the scene row shows a chip for it. The header has to
-    // agree with what's on screen.
+    // visibly there and the scene row shows a chip for it.
     expect(derive([scene(0, 'NIGHTFALL [alt mix]')], PATTERN).scenes[0]!.role).toBe(null);
-    const roles = blockRoles([named(0, 'NIGHTFALL [alt mix]')], BLOCKS);
-    expect(roles.get(0)!.map((r) => r.name)).toEqual(['alt mix']);
+    const shapes = blockTrackRoles(
+      [{ t: 0, s: 0 }],
+      [{ i: 0, name: 'NIGHTFALL [alt mix]' }],
+      BLOCKS,
+    );
+    expect(shapes.get(0)!.get(0)!.roles.map((r) => r.name)).toEqual(['alt mix']);
+  });
+
+  it('gives a track with nothing in the block no entry at all', () => {
+    // Absence is the answer, and the column draws nothing for it.
+    const shapes = blockTrackRoles([{ t: 0, s: 0 }], NAMES, BLOCKS);
+    expect(shapes.get(0)!.get(7)).toBeUndefined();
+    expect(shapes.get(3)!.size).toBe(0);
   });
 
   it('keeps a reprise separate from the first run', () => {
-    // A chorus-only reprise is a different shape from the run that introduced
-    // it, which is the whole reason this is keyed by block.
-    const roles = blockRoles(
+    const shapes = blockTrackRoles(
       [
-        named(0, '[INTRO] NIGHTFALL'),
-        named(1, '[VERSE] NIGHTFALL'),
-        named(5, '[CHORUS] NIGHTFALL'),
+        { t: 0, s: 0 },
+        { t: 0, s: 5 },
       ],
+      NAMES,
       BLOCKS,
     );
-    expect(roles.get(0)!.map((r) => r.name)).toEqual(['INTRO', 'VERSE']);
-    expect(roles.get(5)!.map((r) => r.name)).toEqual(['CHORUS']);
+    expect(shapes.get(0)!.get(0)!.roles.map((r) => r.name)).toEqual(['INTRO']);
+    expect(shapes.get(5)!.get(0)!.roles.map((r) => r.name)).toEqual(['CHORUS']);
   });
 
-  it('orders by scene, not by the order the snapshot arrived in', () => {
-    const roles = blockRoles(
-      [named(2, '[CHORUS] NIGHTFALL'), named(0, '[INTRO] NIGHTFALL')],
-      BLOCKS,
-    );
-    expect(roles.get(0)!.map((r) => r.name)).toEqual(['INTRO', 'CHORUS']);
-  });
-
-  it('gives an empty list to a block whose scenes carry no role', () => {
-    // Not `undefined` — a song nobody has tagged yet is a real answer, and the
-    // header should show no pills rather than read as missing.
-    const roles = blockRoles([named(3, 'GLASS TUNNEL')], BLOCKS);
-    expect(roles.get(3)).toEqual([]);
-  });
-
-  it('ignores a scene no block owns', () => {
-    const roles = blockRoles([named(99, '[CHORUS] STRAY')], BLOCKS);
-    expect([...roles.values()].every((r) => r.length === 0)).toBe(true);
+  it('ignores a clip in a scene no block owns', () => {
+    const shapes = blockTrackRoles([{ t: 0, s: 99 }], NAMES, BLOCKS);
+    expect([...shapes.values()].every((m) => m.size === 0)).toBe(true);
   });
 
   it('has an entry for every block, and only for blocks', () => {
-    expect([...blockRoles([], BLOCKS).keys()]).toEqual([0, 3, 5]);
-    expect(blockRoles([], []).size).toBe(0);
+    expect([...blockTrackRoles([], NAMES, BLOCKS).keys()]).toEqual([0, 3, 5]);
+    expect(blockTrackRoles([], NAMES, []).size).toBe(0);
   });
 
   it('takes its blocks straight off a derivation', () => {
-    const roles = blockRoles(
-      [named(0, '[INTRO] @128-Bm NIGHTFALL'), named(5, '[OUTRO] @128-Bm NIGHTFALL')],
+    const shapes = blockTrackRoles(
+      [{ t: 2, s: 4 }],
+      NAMES,
       SET.songs.flatMap((s) => s.blocks),
     );
-    expect(roles.get(0)!.map((r) => r.name)).toEqual(['INTRO']);
-    expect(roles.get(5)!.map((r) => r.name)).toEqual(['OUTRO']);
+    expect(shapes.get(3)!.get(2)!.scenes).toBe(1);
+  });
+});
+
+describe('mergeShapes', () => {
+  it('sums a folded group of tracks into one shape', () => {
+    const merged = mergeShapes([
+      { roles: [{ name: 'CHORUS', scenes: 2 }], untagged: 1, scenes: 3 },
+      {
+        roles: [
+          { name: 'chorus', scenes: 1 },
+          { name: 'VERSE', scenes: 4 },
+        ],
+        untagged: 0,
+        scenes: 5,
+      },
+    ]);
+    expect(merged).toEqual({
+      roles: [
+        { name: 'CHORUS', scenes: 3 },
+        { name: 'VERSE', scenes: 4 },
+      ],
+      untagged: 1,
+      scenes: 8,
+    });
+  });
+
+  it('does not mutate the shapes it was given', () => {
+    // They're the memoized map's own objects — a group column rendering twice
+    // would otherwise double every count it shows.
+    const one = { roles: [{ name: 'CHORUS', scenes: 2 }], untagged: 0, scenes: 2 };
+    mergeShapes([one, one]);
+    expect(one.roles[0]!.scenes).toBe(2);
+  });
+
+  it('is an empty shape for a group with nothing in it', () => {
+    expect(mergeShapes([])).toEqual({ roles: [], untagged: 0, scenes: 0 });
   });
 });
 

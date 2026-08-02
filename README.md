@@ -120,21 +120,29 @@ the grid. **Collapsing, though, is keyed by song**: folding "Nightfall" folds al
 reprise included. Two blocks then show two headers, which is honest, because the set
 really does contain that song twice.
 
-`blockFills` answers the other half of what a folded song shows: per block, how many of
-its scenes hold a clip in each track. **Keyed by block, not by song**, even though folding
-is keyed by song — a reprise that drops the pads is a genuinely different thing to look at
-than the first run, and averaging the two into one strip would hide exactly the difference
-the second header exists to show. It's one pass over the clips rather than one per block,
-because a full set is thousands of clips and a hundred songs and the obvious nesting is
-their product.
+`blockTrackRoles` answers the other half of what a folded song shows: per block, per
+track, **which sections of the song that track plays**. Not that the sparkle pad is used
+— that it's used in the choruses. "Which tracks does this song use" was the first
+question and this answers it too, since a track with nothing in the block gets no entry,
+but the second question turned out to be the interesting one.
 
-`blockRoles` is the same shape again, for the song's **structure**: per block, which roles
-its scenes carry, in the order they first appear — intro, verse, chorus, outro. Keyed by
-block for the same reason, because a chorus-only reprise is a different shape from the run
-that introduced it. It reads roles with **`roleIn`, not the derivation's `{role}` token**,
-so a header summarises exactly the chips the scene rows below it show: the two can
-disagree — a name the pattern reads as one long title can still carry a bracketed tag —
-and agreeing with what's on screen matters more than agreeing with the pattern.
+**Keyed by block, not by song**, even though folding is keyed by song — a reprise that
+drops the pads is a genuinely different thing to look at than the first run, and averaging
+the two would hide exactly the difference the second header exists to show.
+
+**Roles come from `roleIn`, not the derivation's `{role}` token**, so a header summarises
+exactly the chips the scene rows below it show. The two can disagree — a name the pattern
+reads as one long title can still carry a bracketed tag — and agreeing with what's on
+screen matters more than agreeing with the pattern.
+
+Clips on scenes carrying no role are counted separately rather than dropped. A set
+mid-mapping is mostly untagged, and a track used only there still has to read as used or
+the header lies about what the song holds.
+
+It's one pass over the clips plus one over the scenes, because a full set is thousands of
+clips and a hundred blocks and the obvious nesting is their product; ordering by first
+appearance happens at the end, per track, where there are a handful. `mergeShapes` folds
+several tracks' shapes into one, which is what a collapsed track group's column shows.
 
 The header also carries the song's **color**, as `colorIndex` plus `colorClash`. Two
 fields rather than one because "uncolored" and "colored inconsistently" are different
