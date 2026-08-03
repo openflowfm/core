@@ -188,6 +188,49 @@ export function findRole(vocabulary: readonly Role[], role: string): Role | unde
   return vocabulary.find((r) => roleKey(r.name) === k);
 }
 
+/**
+ * The role a run of scenes agrees on, and whether they disagree.
+ *
+ * `mixed` is not "has no role" — an untagged scene and a `[chorus]` one still
+ * disagree, and a picker that showed that as "none" would offer to clear a tag
+ * the user can see on the row above.
+ */
+export function sharedRole(
+  scenes: readonly number[],
+  names: ReadonlyMap<number, string>,
+): { currentRole: string | null; mixed: boolean } {
+  let seen: string | null | undefined;
+  let disagree = false;
+  for (const s of scenes) {
+    const r = roleIn(names.get(s) ?? '');
+    if (seen === undefined) seen = r;
+    else if (roleKey(seen ?? '') !== roleKey(r ?? '')) disagree = true;
+  }
+  return { currentRole: disagree ? null : (seen ?? null), mixed: disagree };
+}
+
+/**
+ * The indexes of the draft rows that block a save: names that aren't legal
+ * role names, and duplicates by `roleKey` — a duplicate would split one
+ * role's color in two. The first spelling of a duplicated role is kept;
+ * every later occurrence is flagged.
+ */
+export function findRoleProblems(draft: readonly Role[]): Set<number> {
+  const bad = new Set<number>();
+  const seen = new Map<string, number>();
+  draft.forEach((r, i) => {
+    if (!isValidRoleName(r.name)) {
+      bad.add(i);
+      return;
+    }
+    const k = roleKey(r.name);
+    const first = seen.get(k);
+    if (first === undefined) seen.set(k, i);
+    else bad.add(i);
+  });
+  return bad;
+}
+
 // --- scene writes -----------------------------------------------------
 //
 // The scene equivalent of ops.ts, and here for the same reason: assembling and

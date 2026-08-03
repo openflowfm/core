@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   countUnrevertableColors,
   findRole,
+  findRoleProblems,
   inverseSceneOps,
   isValidRoleName,
   mergeVocabulary,
@@ -11,6 +12,7 @@ import {
   roleOps,
   rolesInUse,
   sceneColorOps,
+  sharedRole,
   tempoOps,
   withRole,
   type Role,
@@ -188,6 +190,72 @@ describe('findRole', () => {
 
   it('is undefined for a role that is not there', () => {
     expect(findRole(vocab, 'jam')).toBeUndefined();
+  });
+});
+
+describe('sharedRole', () => {
+  const names = new Map<number, string>([
+    [0, '[chorus] @128-Bm NIGHTFALL'],
+    [1, '[Chorus] @128-Bm NIGHTFALL'],
+    [2, '[verse] @128-Bm NIGHTFALL'],
+    [3, '@128-Bm NIGHTFALL'],
+  ]);
+
+  it('agrees across case, keeping the first spelling seen', () => {
+    expect(sharedRole([0, 1], names)).toEqual({ currentRole: 'chorus', mixed: false });
+  });
+
+  it('is mixed when the scenes carry different roles', () => {
+    expect(sharedRole([0, 2], names)).toEqual({ currentRole: null, mixed: true });
+  });
+
+  it('is mixed when a tagged scene meets an untagged one', () => {
+    // Not "none": a picker that read this as no-role would offer to clear a
+    // tag the user can see on the row above.
+    expect(sharedRole([0, 3], names)).toEqual({ currentRole: null, mixed: true });
+  });
+
+  it('is none, not mixed, when no scene has a role', () => {
+    expect(sharedRole([3], names)).toEqual({ currentRole: null, mixed: false });
+  });
+
+  it('treats a scene missing from the map as untagged', () => {
+    expect(sharedRole([99], names)).toEqual({ currentRole: null, mixed: false });
+  });
+
+  it('is empty-handed for no scenes at all', () => {
+    expect(sharedRole([], names)).toEqual({ currentRole: null, mixed: false });
+  });
+});
+
+describe('findRoleProblems', () => {
+  it('passes a clean draft', () => {
+    expect(
+      findRoleProblems([
+        { name: 'intro', colorIndex: 0 },
+        { name: 'chorus', colorIndex: -1 },
+      ]).size,
+    ).toBe(0);
+  });
+
+  it('flags names that are not legal role names', () => {
+    expect(
+      findRoleProblems([
+        { name: '', colorIndex: -1 },
+        { name: 'a/b', colorIndex: -1 },
+        { name: 'jam', colorIndex: -1 },
+      ]),
+    ).toEqual(new Set([0, 1]));
+  });
+
+  it('flags every duplicate after the first, matched by roleKey', () => {
+    expect(
+      findRoleProblems([
+        { name: 'Chorus', colorIndex: 2 },
+        { name: 'chorus ', colorIndex: 5 },
+        { name: 'CHORUS', colorIndex: -1 },
+      ]),
+    ).toEqual(new Set([1, 2]));
   });
 });
 
