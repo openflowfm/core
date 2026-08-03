@@ -416,6 +416,12 @@ answer. One entry means the scenes agree; more than one is a disagreement for th
 to arbitrate. Collapsing them to "the first one" would hide exactly the drift this exists
 to surface, which is why the songs table renders a clash in amber rather than picking.
 
+`extractedBpm` is deliberately stricter than `observed.tempo`. It exists only when
+**every scene carrying the song has its own `Scene.tempo`, and all of those tempos are
+identical**. A single scene that follows the Live Set tempo makes the answer unknown, as
+does a differing reprise. Song headers use this as a read-only fallback when the names do
+not already state `{bpm}`; taking a snapshot never renames a scene.
+
 **`observed.colorIndex` breaks the omission rule the other facts follow, deliberately.**
 A scene that simply doesn't state its key is incomplete rather than contradictory, so
 `push` drops it. Color has no such thing as "didn't say": a song is one color, and one

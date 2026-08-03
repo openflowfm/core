@@ -177,6 +177,44 @@ describe('scene tempo', () => {
     expect(derive([scene(0, 'A', MIN_TEMPO - 1)], PATTERN).scenes[0]!.tempo).toBeNull();
     expect(derive([scene(0, 'A', MIN_TEMPO)], PATTERN).scenes[0]!.tempo).toBe(MIN_TEMPO);
   });
+
+  it('extracts a bpm when every scene of a song has the same explicit tempo', () => {
+    const d = derive(
+      [scene(0, 'Nightfall [intro]', 128), scene(1, 'Nightfall [verse]', 128)],
+      PATTERN,
+    );
+    expect(d.songs[0]!.extractedBpm).toBe(128);
+  });
+
+  it('does not extract a bpm when even one scene follows the Live Set tempo', () => {
+    const d = derive(
+      [scene(0, 'Nightfall [intro]', 128), scene(1, 'Nightfall [verse]')],
+      PATTERN,
+    );
+    expect(d.songs[0]!.observed.tempo).toEqual([128]);
+    expect(d.songs[0]!.extractedBpm).toBeNull();
+  });
+
+  it('does not extract a bpm when the scenes disagree', () => {
+    const d = derive(
+      [scene(0, 'Nightfall [intro]', 128), scene(1, 'Nightfall [verse]', 130)],
+      PATTERN,
+    );
+    expect(d.songs[0]!.extractedBpm).toBeNull();
+  });
+
+  it('includes every reprise when deciding whether the tempo is shared', () => {
+    const d = derive(
+      [
+        scene(0, 'Nightfall [intro]', 128),
+        scene(1, 'Another Song [intro]', 120),
+        scene(2, 'Nightfall [outro]', 130),
+      ],
+      PATTERN,
+    );
+    expect(d.songs[0]!.blocks).toHaveLength(2);
+    expect(d.songs[0]!.extractedBpm).toBeNull();
+  });
 });
 
 describe('song color', () => {

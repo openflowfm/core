@@ -73,6 +73,15 @@ export interface DerivedSong {
    */
   blocks: SongBlock[];
   /**
+   * A BPM read from Live's `Scene.tempo`, but only when every scene carrying
+   * this song has an explicit tempo and every one is identical. `null` means
+   * at least one scene follows the Live Set tempo or the scenes disagree.
+   *
+   * Kept separate from `observed.bpm`: that array is what the names state,
+   * while this is a safe fallback extracted from the LOM.
+   */
+  extractedBpm: number | null;
+  /**
    * What the *set* says this song is: the distinct values found, in order of
    * first appearance. One entry means the scenes agree; more than one is a
    * disagreement the library has to arbitrate.
@@ -217,6 +226,7 @@ export function derive(
         name: song,
         scenes: [],
         blocks: [],
+        extractedBpm: null,
         observed: { bpm: [], key: [], tempo: [], colorIndex: [] },
       };
       bySong.set(key, entry);
@@ -233,7 +243,15 @@ export function derive(
     }
   }
 
-  for (const s of songs) s.blocks = blocksOf(s.scenes);
+  const derivedByScene = new Map(derived.map((sc) => [sc.s, sc]));
+  for (const s of songs) {
+    s.blocks = blocksOf(s.scenes);
+    const first = derivedByScene.get(s.scenes[0]!)?.tempo ?? null;
+    s.extractedBpm =
+      first !== null && s.scenes.every((scene) => derivedByScene.get(scene)?.tempo === first)
+        ? first
+        : null;
+  }
 
   return { scenes: derived, songs, unmapped };
 }

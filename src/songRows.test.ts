@@ -57,6 +57,35 @@ describe('headers', () => {
     });
   });
 
+  it('uses a unanimous explicit scene tempo when the names omit bpm', () => {
+    const d = derive(
+      [scene(0, '[A] NIGHTFALL', 128), scene(1, '[B] NIGHTFALL', 128)],
+      PATTERN,
+    );
+    expect(songRows(d).headers.get(0)?.bpm).toBe('128');
+  });
+
+  it('does not infer bpm from only some scenes or from differing tempos', () => {
+    const partial = derive(
+      [scene(0, '[A] NIGHTFALL', 128), scene(1, '[B] NIGHTFALL')],
+      PATTERN,
+    );
+    const mixed = derive(
+      [scene(0, '[A] NIGHTFALL', 128), scene(1, '[B] NIGHTFALL', 130)],
+      PATTERN,
+    );
+    expect(songRows(partial).headers.get(0)?.bpm).toBe('');
+    expect(songRows(mixed).headers.get(0)?.bpm).toBe('');
+  });
+
+  it('keeps a bpm stated in the names ahead of the extracted fallback', () => {
+    const d = derive(
+      [scene(0, '[A] @126 NIGHTFALL', 128), scene(1, '[B] @126 NIGHTFALL', 128)],
+      PATTERN,
+    );
+    expect(songRows(d).headers.get(0)?.bpm).toBe('126');
+  });
+
   it('carries the song color when its scenes agree on one', () => {
     const d = derive(
       [

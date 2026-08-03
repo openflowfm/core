@@ -87,6 +87,15 @@ export function songRows(
     // strip, and a color disagreement is shown by the header's own band.
     const colorClash = song.observed.colorIndex.length > 1;
     const colorIndex = colorClash ? -1 : (song.observed.colorIndex[0] ?? -1);
+    // Names remain the durable source of truth. When they don't state a BPM,
+    // Live's scene tempos can supply it only under derive's strict all-scenes
+    // agreement rule — partial tempo automation must not become a song fact.
+    const bpm =
+      song.observed.bpm.length > 0
+        ? show(song.observed.bpm)
+        : song.extractedBpm === null
+          ? ''
+          : String(song.extractedBpm);
 
     song.blocks.forEach((block, i) => {
       headers.set(block.from, {
@@ -97,7 +106,7 @@ export function songRows(
         scenes: block.to - block.from + 1,
         block: i + 1,
         blocks: song.blocks.length,
-        bpm: show(song.observed.bpm),
+        bpm,
         key: show(song.observed.key),
         tempo: show(song.observed.tempo),
         clash,
