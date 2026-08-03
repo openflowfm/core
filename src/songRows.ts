@@ -12,7 +12,7 @@
 // including a reprise sixty scenes later. Two blocks then show two headers,
 // which is honest — the set really does contain that song twice.
 
-import { songKey, type Derivation, type SongBlock } from './derive.js';
+import { songKey, type Derivation, type DerivedSong, type SongBlock } from './derive.js';
 import { roleIn, roleKey } from './roles.js';
 
 /**
@@ -69,6 +69,29 @@ function show(values: readonly (string | number)[]): string {
   return values.length === 0 ? '' : values.join(' / ');
 }
 
+/**
+ * The facts a song states, as they're shown: `''` when the set says nothing,
+ * the value when its scenes agree, `a / b` when they don't.
+ *
+ * Here rather than inline in `songRows` because the header isn't the only thing
+ * that shows them — anything listing songs has to spell them the same way, or
+ * the same song reads differently in two places.
+ */
+export function songFacts(song: DerivedSong): { bpm: string; key: string } {
+  return {
+    // Names remain the durable source of truth. When they don't state a BPM,
+    // Live's scene tempos can supply it only under derive's strict all-scenes
+    // agreement rule — partial tempo automation must not become a song fact.
+    bpm:
+      song.observed.bpm.length > 0
+        ? show(song.observed.bpm)
+        : song.extractedBpm === null
+          ? ''
+          : String(song.extractedBpm),
+    key: show(song.observed.key),
+  };
+}
+
 export function songRows(
   derivation: Derivation,
   collapsed: ReadonlySet<string> = new Set(),
@@ -87,15 +110,7 @@ export function songRows(
     // strip, and a color disagreement is shown by the header's own band.
     const colorClash = song.observed.colorIndex.length > 1;
     const colorIndex = colorClash ? -1 : (song.observed.colorIndex[0] ?? -1);
-    // Names remain the durable source of truth. When they don't state a BPM,
-    // Live's scene tempos can supply it only under derive's strict all-scenes
-    // agreement rule — partial tempo automation must not become a song fact.
-    const bpm =
-      song.observed.bpm.length > 0
-        ? show(song.observed.bpm)
-        : song.extractedBpm === null
-          ? ''
-          : String(song.extractedBpm);
+    const facts = songFacts(song);
 
     song.blocks.forEach((block, i) => {
       headers.set(block.from, {
@@ -106,8 +121,8 @@ export function songRows(
         scenes: block.to - block.from + 1,
         block: i + 1,
         blocks: song.blocks.length,
-        bpm,
-        key: show(song.observed.key),
+        bpm: facts.bpm,
+        key: facts.key,
         tempo: show(song.observed.tempo),
         clash,
         colorIndex,

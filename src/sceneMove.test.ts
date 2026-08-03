@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { planSceneMove, describeMove, type MoveRequest } from './sceneMove.js';
+import {
+  planSceneMove,
+  planSceneReorder,
+  describeMove,
+  type MoveRequest,
+} from './sceneMove.js';
 
 /** A set with no clips and no groups — enough to test the index arithmetic. */
 function req(over: Partial<MoveRequest> = {}): MoveRequest {
@@ -162,6 +167,112 @@ describe('planSceneMove', () => {
           expect(out.slice(plan.finalFrom, plan.finalTo + 1)).toEqual(sources);
         }
       }
+    }
+  });
+});
+
+/** Every permutation of `0 … n-1`, for the exhaustive replays below. */
+function permutations(n: number): number[][] {
+  if (n === 0) return [[]];
+  const out: number[][] = [];
+  for (const rest of permutations(n - 1)) {
+    for (let i = 0; i <= rest.length; i++) {
+      out.push([...rest.slice(0, i), n - 1, ...rest.slice(i)]);
+    }
+  }
+  return out;
+}
+
+describe('planSceneReorder', () => {
+  const order = (order: number[], over: Partial<{ clips: MoveClip[]; tracks: MoveTrack[] }> = {}) =>
+    planSceneReorder({ order, clips: [], tracks: [{ i: 0, isGroup: false }], ...over });
+
+  type MoveClip = { t: number; s: number };
+  type MoveTrack = { i: number; isGroup: boolean };
+
+  it('returns null when the set is already in that order', () => {
+    // Opening the modal and applying without dragging anything must not delete
+    // and rebuild the set to put it back exactly as it was.
+    expect(order([0, 1, 2, 3, 4])).toBeNull();
+    expect(order([])).toBeNull();
+  });
+
+  it('refuses an order that is not the whole set', () => {
+    // A short, repeated or out-of-range order would build a plan that deletes
+    // scenes it never copied. Loud, because it can only be our own bug.
+    expect(() => order([0, 1, 1])).toThrow(/exactly once/);
+    expect(() => order([0, 1, 5])).toThrow(/exactly once/);
+    expect(() => planSceneReorder({ order: [0, 1, 2.5], clips: [], tracks: [] })).toThrow();
+  });
+
+  it('replays to exactly the order asked for', () => {
+    const wanted = [4, 0, 1, 2, 3];
+    expect(replay(order(wanted), 5)).toEqual(wanted);
+    expect(replay(order([2, 3, 4, 0, 1]), 5)).toEqual([2, 3, 4, 0, 1]);
+  });
+
+  it('reaches every order, over every permutation of a small set', () => {
+    // The exhaustive replay is the whole proof: for each of the 873 orders of a
+    // set of up to six scenes, the plan has to land on that order exactly —
+    // nothing lost, nothing duplicated, no blank left unfilled.
+    for (let n = 1; n <= 6; n++) {
+      for (const wanted of permutations(n)) {
+        const plan = order(wanted);
+        if (!plan) {
+          expect(wanted).toEqual(wanted.map((_, i) => i));
+          continue;
+        }
+        expect(replay(plan, n)).toEqual(wanted);
+        expect(plan.create).toHaveLength(plan.remove.length);
+        expect(plan.remove).toEqual([...plan.remove].sort((a, b) => b - a));
+      }
+    }
+  });
+
+  it('moves only the scenes that have to move', () => {
+    // One song lifted out of a set is one song's worth of copying, not the
+    // set's. Everything between its old and new home is already in the right
+    // order relative to everything else, so it stays where it is.
+    const plan = order([0, 1, 3, 4, 5, 6, 7, 2, 8, 9])!;
+    expect(plan.scenes).toBe(1);
+    expect(plan.steps.map((s) => s.from)).toHaveLength(1);
+  });
+
+  it('gathers a song that sits in two runs', () => {
+    // Two runs of one song, brought together: 5 joins 1 and 2. The scenes it
+    // passes are in the right order already and are left alone.
+    const plan = order([0, 1, 2, 5, 3, 4, 6])!;
+    expect(replay(plan, 7)).toEqual([0, 1, 2, 5, 3, 4, 6]);
+    expect(plan.scenes).toBe(1);
+  });
+
+  it('counts the clips it will copy, and never a group track', () => {
+    const plan = order([2, 0, 1], {
+      tracks: [
+        { i: 0, isGroup: true },
+        { i: 1, isGroup: false },
+        { i: 2, isGroup: false },
+      ],
+      clips: [
+        { t: 0, s: 2 }, // a group slot — duplicate_clip_to raises on one
+        { t: 1, s: 2 },
+        { t: 2, s: 2 },
+        { t: 1, s: 0 }, // on a scene that isn't moving
+      ],
+    })!;
+    expect(plan.steps[0]!.tracks).toEqual([1, 2]);
+    expect(plan.clips).toBe(2);
+    expect(describeMove(plan)).toBe('1 scene · 2 clips copied · 1 deleted');
+  });
+
+  it('creates its blanks in ascending order, so none renumbers another', () => {
+    // The destination of every copy is stated as a plain index up front, which
+    // is only true while each create_scene lands above the blanks already made.
+    for (const wanted of permutations(6)) {
+      const plan = order(wanted);
+      if (!plan) continue;
+      expect(plan.create).toEqual([...plan.create].sort((a, b) => a - b));
+      expect(new Set(plan.create).size).toBe(plan.create.length);
     }
   });
 });

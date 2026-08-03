@@ -16,10 +16,12 @@ src/namePattern.ts   patterns that can be read back: format, parse, validate
 src/derive.ts        the set → the mapping, by reversing the pattern
 src/songRows.ts      songs → grid rows + song headers, and what folding hides
 src/sceneMove.ts     reordering scenes: the index arithmetic, so it's testable
+src/songOrder.ts     a running order of songs → the order the scenes go in
+src/colorRules.ts    a color per song, from a rule over the whole set
 src/index.ts         barrel
 ```
 
-Run with `npm test` from the repo root. 250 tests.
+Run with `npm test` from the repo root. 356 tests.
 
 ## The one rule
 
@@ -190,6 +192,71 @@ nothing lost, nothing duplicated, no blank left unfilled.
 
 Non-contiguous sources work, which is what lets a song found in two blocks be gathered
 in one gesture.
+
+`planSceneReorder` answers the other question: not "put this run there" but **"here is the
+order I want"**, as one plan. A set list is reordered by pushing ten songs around, and
+doing that a drag at a time is ten create/copy/delete passes, ten round trips and ten
+re-snapshots — plus ten separate entries in Live's undo history, with a half-applied order
+as the failure mode in between.
+
+**Only the scenes that have to move, move.** The longest increasing subsequence of the
+wanted order is the largest set of scenes already in the right relative order, so those are
+left exactly where they are and the rest are rebuilt around them. Moving one song out of a
+hundred therefore costs what dragging it costs. The naive version — copy all n scenes to
+the end, delete the originals — is four lines and correct and copies every clip in the set.
+
+The blanks stay one contiguous group per gap and are emitted in ascending position, so no
+`create_scene` renumbers a blank already made and every copy's destination can be stated as
+a plain index up front. Where each *original* ends up is computed by merging rather than by
+arithmetic: the blanks' final indexes are their create indexes, so the originals fill what's
+left, in order.
+
+The test is the same replay, taken to its limit: **every permutation of a set of up to six
+scenes** — 873 of them — has to land on exactly the order asked for, with the blanks
+ascending and as many deletions as creations.
+
+An order that isn't a permutation of the set **throws**. It can only be our own bug, and a
+plan built from a half-correct order would delete scenes it never copied. The UI catches
+it rather than letting it land mid-render.
+
+**`songOrder.ts`** — what a running order means in scenes, which is the input
+`planSceneReorder` needs. Two rules, both falling out of **a song being a label rather than
+a range**:
+
+- **A song is one entry, so applying an order gathers it.** A song found in two runs is one
+  line of a set list and comes out as one run. That's a real change — the reprise stops
+  being one — so whatever renders this has to say so before it writes.
+- **A scene no song owns travels with the song it sits after**, and stays at the top of the
+  set if no song precedes it. It isn't in the running order and can't be placed by one, and
+  the obvious alternative — pinning it to the index it holds now — cuts a song in half as
+  soon as the songs above it change length.
+
+It is deliberately **total**: a stale order that omits a song appends it rather than
+dropping it, and a song the set no longer carries is ignored. Every scene comes out exactly
+once whatever the caller passes, because `planSceneReorder` refuses anything else and being
+refused is not a useful answer to give someone who just pressed Apply.
+
+**`colorRules.ts`** — a color per song for the whole set at once. `useSongColor` paints
+what you selected with the swatch you pressed; this decides what every band should be:
+songs sharing a key sharing a color, or the palette walking with the tempo. Neither can be
+produced a swatch at a time, which is the reason it exists.
+
+Three decisions carry it:
+
+- **A rule never invents the fact it keys on.** A song whose scenes don't state a key isn't
+  "the no-key color" — it's left alone, and named in `skipped` so the caller can say so.
+  Coloring a song by a fact nobody wrote down is how a color stops meaning anything. A
+  song whose scenes *disagree* is the same case: the caller passes it as unstated, the way
+  the header renders the clash instead of picking one.
+- **Grouping rules wrap on the number of groups, not the number of songs**, or two songs
+  sharing a key would drift apart. bpm orders ascending, so the palette walks with the
+  tempo; key orders by first appearance, since keys have no order anyone agrees on and
+  first appearance is what derivation already uses.
+- **`random` takes a seed and deals from a shuffled bag.** The seed keeps `core` pure and
+  makes the preview and the write the same roll — re-rolling is a different number, not a
+  different function. The bag means every allowed color is used before any repeats, and the
+  one swap at each refill means no two songs in a row match. Independent draws clump, and
+  a clump of one color across three adjacent songs is exactly what a band is for.
 
 **`ops.ts`** — the first piece of the undo story, and it's here because the whole point is
 that it's provable without Live. `inverseOps` turns a batch about to be written into the

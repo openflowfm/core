@@ -7,3 +7,5 @@ export * from './namePattern.js';
 export * from './derive.js';
 export * from './songRows.js';
 export * from './sceneMove.js';
+export * from './songOrder.js';
+export * from './colorRules.js';
