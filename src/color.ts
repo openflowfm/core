@@ -21,9 +21,39 @@ export function luminance(rgb: number): number {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-/** Ink color for text laid over `rgb`. Live's palette spans both extremes. */
+/**
+ * Perceived brightness, 0..1 — the classic luma weights on the channels **as
+ * they are**, with no gamma linearisation.
+ *
+ * Deliberately not `luminance` above, and the difference is the whole reason
+ * this exists. WCAG relative luminance linearises first, which drags mid-tones
+ * a long way down: Live's `#3dc300` green reads 0.40 there and 0.52 here. The
+ * WCAG figure is the right one for a *contrast ratio*, and the wrong one for
+ * "would a person call this color light or dark" — which is the question
+ * `inkOn` is actually asking.
+ */
+export function brightness(rgb: number): number {
+  const r = (rgb >> 16) & 0xff;
+  const g = (rgb >> 8) & 0xff;
+  const b = rgb & 0xff;
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+}
+
+/**
+ * Ink color for text laid over `rgb` — black on light, white on dark.
+ *
+ * Threshold at the classic 128/255, which is what Live itself lands on: across
+ * the 70-color palette this puts white on the 17 genuinely dark entries (the
+ * navies, the dark grey, the browns) and black on everything else, matching
+ * what Live draws in its own track headers and clip slots.
+ *
+ * It used to test WCAG luminance against 0.45 and put white on **44 of 70** —
+ * more than half the palette, including colors nobody would call dark. Live's
+ * palette is mostly light and saturated, which is exactly the region where the
+ * two measures disagree; see `brightness`.
+ */
 export function inkOn(rgb: number): string {
-  return luminance(rgb) > 0.45 ? '#141417' : '#f2f2f4';
+  return brightness(rgb) > 128 / 255 ? '#141417' : '#f2f2f4';
 }
 
 /** WCAG contrast ratio between two colors, 1..21. */

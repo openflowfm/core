@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { contrast, hex, inkOn, legibleOn, luminance } from './color.js';
+import { brightness, contrast, hex, inkOn, legibleOn, luminance } from './color.js';
 
 const PANEL = 0x0a0a0b; // --bg, what scene names are painted on
 
@@ -21,6 +21,43 @@ describe('inkOn', () => {
   it('is monotonic with luminance', () => {
     expect(luminance(0xffffff)).toBeGreaterThan(luminance(0x808080));
     expect(luminance(0x808080)).toBeGreaterThan(luminance(0x000000));
+  });
+
+  /* The colors below are real entries from Live's 70-color palette, and each
+     one is a place the old WCAG-luminance rule disagreed with Live. They're
+     here as a regression net: the failure mode is "labels went white again on
+     half the set", which is only visible with Live open. */
+  it('puts black on the saturated mid-tones Live puts black on', () => {
+    expect(inkOn(0x3dc300)).toBe('#141417'); // green
+    expect(inkOn(0x00bfaf)).toBe('#141417'); // teal
+    expect(inkOn(0xa9a9a9)).toBe('#141417'); // mid grey
+    expect(inkOn(0xd3ad71)).toBe('#141417'); // tan
+    expect(inkOn(0xf66c03)).toBe('#141417'); // orange
+    expect(inkOn(0xff39d4)).toBe('#141417'); // magenta
+  });
+
+  it('keeps white on the genuinely dark entries', () => {
+    expect(inkOn(0x1a2f96)).toBe('#f2f2f4'); // navy
+    expect(inkOn(0x3c3c3c)).toBe('#f2f2f4'); // dark grey
+    expect(inkOn(0x724f41)).toBe('#f2f2f4'); // brown
+    expect(inkOn(0xaf3333)).toBe('#f2f2f4'); // dark red
+    expect(inkOn(0x624bad)).toBe('#f2f2f4'); // purple
+  });
+});
+
+describe('brightness', () => {
+  it('rates a saturated green far above its WCAG luminance', () => {
+    // The disagreement this function exists for: linearising drags mid-tones
+    // down, and this green is the one that made every label on the set white.
+    expect(brightness(0x3dc300)).toBeGreaterThan(0.5);
+    expect(luminance(0x3dc300)).toBeLessThan(0.45);
+  });
+
+  it('weights green over red over blue, and spans 0..1', () => {
+    expect(brightness(0x00ff00)).toBeGreaterThan(brightness(0xff0000));
+    expect(brightness(0xff0000)).toBeGreaterThan(brightness(0x0000ff));
+    expect(brightness(0xffffff)).toBeCloseTo(1, 5);
+    expect(brightness(0x000000)).toBe(0);
   });
 });
 

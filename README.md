@@ -4,7 +4,7 @@ Pure domain logic. This is where the actual thinking goes, and the only module w
 meaningful unit-test coverage.
 
 ```
-src/color.ts         palette RGB → hex, luminance, ink contrast, legibility
+src/color.ts         palette RGB → hex, luminance, brightness, ink, legibility
 src/lomAtoms.ts      parsing for the atom shapes the LOM returns
 src/pattern.ts       token template evaluation + song-title parsing
 src/trackColumns.ts  Live's flat track list → grid columns + group color bands
@@ -23,7 +23,7 @@ src/colorRules.ts    a color per song, from a rule over the whole set
 src/index.ts         barrel
 ```
 
-Run with `npm test` from the repo root. 385 tests.
+Run with `npm test` from the repo root. 389 tests.
 
 ## The one rule
 
@@ -74,9 +74,22 @@ give it its own value rather than a plausible default.
 **If you change the helpers in `lom.ts`, change these too.** The duplication is a
 known cost, accepted to get the tests.
 
-**`color.ts`** — Live's palette spans near-white to near-black, so clip labels sitting
-directly on the clip color need per-swatch contrast. `inkOn()` picks dark or light ink
-by luminance.
+**`color.ts`** — Live's palette spans near-white to near-black, so a label sitting
+directly on a Live color needs per-swatch contrast. `inkOn()` picks dark or light ink,
+and **it asks `brightness()` rather than `luminance()`** — which is the whole reason
+both exist.
+
+`luminance()` is WCAG relative luminance, which linearises the channels before
+weighting them. That's the correct input to a contrast *ratio* and the wrong input to
+"would a person call this light or dark": linearising drags mid-tones a long way down,
+and Live's palette is mostly saturated mid-tones. Live's `#3dc300` green reads 0.40 as
+luminance and 0.52 as brightness. Testing luminance against 0.45 put white ink on **44
+of the 70 palette entries**, which is not what Live does and not what anyone looking at
+the set would expect. `brightness()` weights the gamma-encoded channels directly, at the
+classic 128/255 threshold, and leaves white on the 17 entries that are actually dark.
+
+The palette entries that moved are pinned in `color.test.ts`. The failure mode is
+"half the labels went white again", which is only visible with Live open.
 
 `legibleOn()` is the opposite case: a scene name *is* Live's color, painted on our
 near-black panel, and Live's palette contains colors invisible there. It blends toward
