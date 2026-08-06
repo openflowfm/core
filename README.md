@@ -7,7 +7,8 @@ meaningful unit-test coverage.
 src/color.ts         palette RGB → hex, luminance, ink contrast, legibility
 src/lomAtoms.ts      parsing for the atom shapes the LOM returns
 src/pattern.ts       token template evaluation + song-title parsing
-src/trackColumns.ts  Live's flat track list → grid columns + group headers
+src/trackColumns.ts  Live's flat track list → grid columns + group color bands
+src/groupSlot.ts     what a group track's clip slot shows at one scene
 src/gridRange.ts     block selection + active-cell movement over the columns
 src/ops.ts           building clip writes, and reversing them
 src/roles.ts         scene roles: the [role] tag, and scene writes
@@ -21,7 +22,7 @@ src/colorRules.ts    a color per song, from a rule over the whole set
 src/index.ts         barrel
 ```
 
-Run with `npm test` from the repo root. 356 tests.
+Run with `npm test` from the repo root. 365 tests.
 
 ## The one rule
 
@@ -83,12 +84,27 @@ showing Live's color — survives. Pure black is the terminating case.
 
 **`trackColumns.ts`** — Live stores group membership as a parent link per track and
 allows groups inside groups, so this walks the link rather than inferring structure
-from track order. `buildColumns` drops a collapsed group's descendants at any depth
-and replaces them with one column; `headerSpans` merges consecutive columns into the
-group header row, always totalling the column count so the header can't drift out of
-alignment with the grid. Only the immediate parent is shown — representing arbitrary
-nesting needs a header row per level, which the grid doesn't have. Cyclic parent links
-are guarded against rather than trusted, since a malformed one would hang the render.
+from track order. `buildColumns` gives every group a column of its own — a group track
+is a real track with real clip slots — and collapsing drops its *descendants* at any
+depth while the group's own column stays. That's Live's own behaviour, and it's why
+there's no "stands in for its members" column kind: the thing that stands in for them
+is the group itself.
+
+Both column kinds carry `group`, meaning the same thing in both: the group whose color
+band the column sits in. For a member that's its parent; for a group track it's itself,
+because a group heads its own band. `startsBand` marks where a run begins, so the grid
+can cap the left end and two adjacent groups never read as one. Only the immediate
+parent is shown, so a group inside another opens a run in its own color rather than
+continuing its parent's. Cyclic parent links are guarded against rather than trusted,
+since a malformed one would hang the render.
+
+**`groupSlot.ts`** — a group slot holds no clip, and Live still draws it as a launcher
+colored by the first clip the group holds in that scene. Both answers come from clips
+the snapshot already has, so the grid renders group slots without reading anything extra
+out of Live — the LOM exposes them per slot, which is trackCount × sceneCount reads for
+something already in hand. Member order is load-bearing: it decides which clip is
+"first" and therefore what color the slot takes. `-1` means the group has nothing there
+and is not a color; black is `0` and is.
 
 **`gridRange.ts`** — shift-click and arrow-key movement, which look trivial and aren't.
 **Both axes work in rendered positions, never in indexes.** `columns` is the visible

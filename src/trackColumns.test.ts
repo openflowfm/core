@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   buildColumns,
   groupsOf,
-  headerSpans,
   membersOf,
+  startsBand,
   type GroupableTrack,
 } from './trackColumns.js';
 
@@ -34,40 +34,55 @@ const names = (cols: ReturnType<typeof buildColumns<GroupableTrack>>) =>
   cols.map((c) => (c.kind === 'track' ? c.track.name : `[${c.group.name}]`));
 
 describe('buildColumns', () => {
-  it('drops group tracks and keeps the rest in order when nothing is collapsed', () => {
+  it('gives every group a column of its own, ahead of its members', () => {
     expect(names(buildColumns(FLAT, new Set()))).toEqual([
+      '[Pads]',
       'Sparkle',
       'Beating',
+      '[Drums]',
       'Kick',
       'Vox',
     ]);
   });
 
-  it('carries the group shown above each open track column', () => {
-    const groups = buildColumns(FLAT, new Set()).map((c) =>
-      c.kind === 'track' ? (c.group?.name ?? null) : c.group.name,
-    );
-    expect(groups).toEqual(['Pads', 'Pads', 'Drums', null]);
+  it('bands each column with the group it sits in, and a group with itself', () => {
+    const groups = buildColumns(FLAT, new Set()).map((c) => c.group?.name ?? null);
+    expect(groups).toEqual(['Pads', 'Pads', 'Pads', 'Drums', 'Drums', null]);
   });
 
   it('uses the immediate group for a nested open track', () => {
     const cols = buildColumns(NESTED, new Set());
-    expect(cols[0]?.kind).toBe('track');
-    if (cols[0]?.kind === 'track') expect(cols[0].group?.name).toBe('Inner');
+    // [Outer] [Inner] Deep Shallow — Deep's band is Inner, not Outer.
+    expect(names(cols)).toEqual(['[Outer]', '[Inner]', 'Deep', 'Shallow']);
+    expect(cols[2]?.group?.name).toBe('Inner');
+    expect(cols[3]?.group?.name).toBe('Outer');
   });
 
-  it('replaces a collapsed group with one column and hides its members', () => {
+  it('keeps the group column and hides its members when collapsed', () => {
     expect(names(buildColumns(FLAT, new Set([0])))).toEqual([
       '[Pads]',
+      '[Drums]',
       'Kick',
       'Vox',
     ]);
   });
 
-  it('carries the hidden member indexes on the folded column', () => {
-    const folded = buildColumns(FLAT, new Set([0]))[0];
-    expect(folded.kind).toBe('folded');
-    if (folded.kind === 'folded') expect(folded.members).toEqual([1, 2]);
+  it('carries the hidden member indexes, and says it is collapsed', () => {
+    const [pads] = buildColumns(FLAT, new Set([0]));
+    expect(pads.kind).toBe('group');
+    if (pads.kind === 'group') {
+      expect(pads.members).toEqual([1, 2]);
+      expect(pads.collapsed).toBe(true);
+    }
+  });
+
+  it('carries members on an expanded group too — the cell counts them either way', () => {
+    const [pads] = buildColumns(FLAT, new Set());
+    expect(pads.kind).toBe('group');
+    if (pads.kind === 'group') {
+      expect(pads.members).toEqual([1, 2]);
+      expect(pads.collapsed).toBe(false);
+    }
   });
 
   it('collapses several groups independently', () => {
@@ -84,7 +99,17 @@ describe('buildColumns', () => {
   });
 
   it('collapses an inner group without touching its siblings', () => {
-    expect(names(buildColumns(NESTED, new Set([1])))).toEqual(['[Inner]', 'Shallow']);
+    expect(names(buildColumns(NESTED, new Set([1])))).toEqual([
+      '[Outer]',
+      '[Inner]',
+      'Shallow',
+    ]);
+  });
+
+  it('reaches through nesting for the members a collapsed outer group stands for', () => {
+    const [outer] = buildColumns(NESTED, new Set([0]));
+    // Deep is two levels down and Inner is a group, so members is [Deep, Shallow].
+    if (outer.kind === 'group') expect(outer.members).toEqual([2, 3]);
   });
 
   it('survives a cyclic parent link instead of hanging', () => {
@@ -108,40 +133,38 @@ describe('membersOf', () => {
   });
 });
 
-describe('headerSpans', () => {
-  it('spans each group over its columns and totals the column count', () => {
+describe('startsBand', () => {
+  it('starts a band at each group column and nowhere inside it', () => {
     const cols = buildColumns(FLAT, new Set());
-    const spans = headerSpans(FLAT, cols);
-    expect(spans.map((s) => [s.group?.name ?? null, s.span])).toEqual([
-      ['Pads', 2],
-      ['Drums', 1],
-      [null, 1],
+    // [Pads] Sparkle Beating [Drums] Kick Vox
+    expect(cols.map((_, i) => startsBand(cols, i))).toEqual([
+      true,
+      false,
+      false,
+      true,
+      false,
+      false,
     ]);
-    expect(spans.reduce((n, s) => n + s.span, 0)).toBe(cols.length);
   });
 
-  it('merges consecutive ungrouped columns into one span', () => {
+  it('does not band an ungrouped column', () => {
     const tracks = mk([
       ['A', false, -1],
       ['B', false, -1],
     ]);
-    expect(headerSpans(tracks, buildColumns(tracks, new Set()))).toEqual([
-      { group: null, span: 2 },
-    ]);
+    const cols = buildColumns(tracks, new Set());
+    expect(cols.map((_, i) => startsBand(cols, i))).toEqual([false, false]);
   });
 
-  it('headers a folded column by its parent, not by itself', () => {
-    // Inner folded: its own name is the column label, so the header above it
-    // must be Outer rather than Inner repeated.
-    const cols = buildColumns(NESTED, new Set([1]));
-    expect(headerSpans(NESTED, cols).map((s) => [s.group?.name ?? null, s.span])).toEqual([
-      ['Outer', 2],
-    ]);
+  it('starts a fresh band for a nested group rather than continuing its parent', () => {
+    const cols = buildColumns(NESTED, new Set());
+    // [Outer] [Inner] Deep Shallow — Inner opens its own run, and Shallow
+    // reopens Outer's after it, so both are starts.
+    expect(cols.map((_, i) => startsBand(cols, i))).toEqual([true, true, false, true]);
   });
 
-  it('still totals the column count when groups are collapsed', () => {
-    const cols = buildColumns(FLAT, new Set([0]));
-    expect(headerSpans(FLAT, cols).reduce((n, s) => n + s.span, 0)).toBe(cols.length);
+  it('is false past the end', () => {
+    expect(startsBand(buildColumns(FLAT, new Set()), 99)).toBe(false);
   });
 });
 

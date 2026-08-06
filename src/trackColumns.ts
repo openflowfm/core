@@ -17,27 +17,33 @@ export interface GroupableTrack {
   groupIndex: number;
 }
 
-/** One rendered grid column. */
+/**
+ * One rendered grid column.
+ *
+ * Both variants carry `group`, and in both it means the same thing: the group
+ * whose color band this column sits in. For a member track that's its parent;
+ * for a group track it's *itself*, because the group track heads its own band.
+ * Reading `c.group` therefore colors any column without asking which kind it is.
+ */
 export type Column<T extends GroupableTrack> =
   | {
       kind: 'track';
       track: T;
-      /** The immediate group drawn above this column, or null when ungrouped. */
+      /** The group this column belongs to, or null when ungrouped. */
       group: T | null;
     }
   | {
-      kind: 'folded';
+      kind: 'group';
+      /** The group track itself. It is a real Live track with real clip slots. */
       group: T;
-      /** Indexes of the non-group tracks this column stands in for. */
+      /**
+       * Indexes of the non-group tracks beneath it, at any depth. What the
+       * group slot fires, and what the cell counts.
+       */
       members: number[];
+      /** Whether its members are hidden behind it right now. */
+      collapsed: boolean;
     };
-
-/** One cell in the group header row, spanning the columns beneath it. */
-export interface HeaderSpan<T extends GroupableTrack> {
-  /** `null` for a run of tracks that belong to no group. */
-  group: T | null;
-  span: number;
-}
 
 function byIndex<T extends GroupableTrack>(tracks: readonly T[]): Map<number, T> {
   return new Map(tracks.map((t) => [t.i, t]));
@@ -78,11 +84,15 @@ export function membersOf<T extends GroupableTrack>(
 /**
  * The columns to render, in order.
  *
- * A collapsed group becomes a single `folded` column and its descendants drop
- * out entirely — including nested groups, which is why this tests ancestry
- * rather than the immediate parent. Group tracks themselves are never columns
- * when expanded; they're headers, and Live's own group clip slots aren't part
- * of the snapshot.
+ * A group track is always a column, collapsed or not — it is a real track in
+ * Live with real clip slots, and its slot fires every clip in the group at that
+ * scene. Collapsing hides its *members*, not the group; that's Live's own
+ * behaviour and the reason this needs no separate "stands in for" column kind.
+ *
+ * Descendants of a collapsed group drop out entirely, including nested groups,
+ * which is why this tests ancestry rather than the immediate parent. Live orders
+ * its track list with a group ahead of its members, so walking that order puts
+ * each group column to the left of what it contains without sorting anything.
  */
 export function buildColumns<T extends GroupableTrack>(
   tracks: readonly T[],
@@ -92,13 +102,18 @@ export function buildColumns<T extends GroupableTrack>(
   const out: Column<T>[] = [];
 
   for (const t of tracks) {
-    // Anything under a collapsed group is represented by that group's column.
+    // Anything under a collapsed group is hidden behind that group's column.
+    // A collapsed group's own column survives this: the walk starts at its
+    // parent, so a group is never its own ancestor.
     if (nearestAncestorIn(index, t, collapsed) >= 0) continue;
 
     if (t.isGroup) {
-      if (collapsed.has(t.i)) {
-        out.push({ kind: 'folded', group: t, members: membersOf(tracks, t) });
-      }
+      out.push({
+        kind: 'group',
+        group: t,
+        members: membersOf(tracks, t),
+        collapsed: collapsed.has(t.i),
+      });
       continue;
     }
     out.push({
@@ -111,36 +126,29 @@ export function buildColumns<T extends GroupableTrack>(
 }
 
 /**
- * Group header cells for `columns`, one row above the track names.
+ * Whether `column` begins a new color band — the first column of a group's run.
  *
- * A column's header is its immediate parent group; a folded column's header is
- * the parent of the group it stands for, since the group's own name is already
- * the column label. Consecutive columns sharing a header merge into one span,
- * so the spans always total `columns.length` and the header row lines up.
+ * The grid used to draw grouping as a header row of spans above the track
+ * names. It doesn't any more: a group track carries its own name in the track
+ * header, so a second row saying the same word was redundant. What the span row
+ * did carry was the *extent* of a group, and that survives as a colored rule
+ * along the top of each column in the run. This says where a run starts, so the
+ * left end can be capped and two adjacent groups never read as one.
  *
- * Only the immediate parent is shown. A group nested inside another renders
- * under its own name, not its grandparent's — representing arbitrary depth
- * needs a header row per level, which the grid doesn't have.
+ * A group column always starts a band. It's the leftmost column of its own
+ * group, including when it's nested — a group inside another begins a run in
+ * its own color rather than continuing its parent's, the same "immediate parent
+ * only" rule the span row followed.
  */
-export function headerSpans<T extends GroupableTrack>(
-  tracks: readonly T[],
+export function startsBand<T extends GroupableTrack>(
   columns: readonly Column<T>[],
-): HeaderSpan<T>[] {
-  const index = byIndex(tracks);
-  const out: HeaderSpan<T>[] = [];
-
-  for (const c of columns) {
-    const group =
-      c.kind === 'track'
-        ? c.group
-        : c.group.groupIndex >= 0
-          ? (index.get(c.group.groupIndex) ?? null)
-          : null;
-    const last = out[out.length - 1];
-    if (last && last.group === group) last.span++;
-    else out.push({ group, span: 1 });
-  }
-  return out;
+  at: number,
+): boolean {
+  const c = columns[at];
+  if (c === undefined || c.group === null) return false;
+  if (c.kind === 'group') return true;
+  const prev = columns[at - 1];
+  return prev === undefined || prev.group !== c.group;
 }
 
 /** Every group track, in track order — what the collapse-all control acts on. */
