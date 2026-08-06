@@ -17,12 +17,13 @@ src/namePattern.ts   patterns that can be read back: format, parse, validate
 src/derive.ts        the set → the mapping, by reversing the pattern
 src/songRows.ts      songs → grid rows + song headers, and what folding hides
 src/sceneMove.ts     reordering scenes: the index arithmetic, so it's testable
+src/clipMove.ts      dragging clips: the copy order, so nothing is clobbered
 src/songOrder.ts     a running order of songs → the order the scenes go in
 src/colorRules.ts    a color per song, from a rule over the whole set
 src/index.ts         barrel
 ```
 
-Run with `npm test` from the repo root. 365 tests.
+Run with `npm test` from the repo root. 385 tests.
 
 ## The one rule
 
@@ -105,6 +106,26 @@ out of Live — the LOM exposes them per slot, which is trackCount × sceneCount
 something already in hand. Member order is load-bearing: it decides which clip is
 "first" and therefore what color the slot takes. `-1` means the group has nothing there
 and is not a color; black is `0` and is.
+
+**`clipMove.ts`** — a clip drag is a **rigid translation**: every clip picked up moves by
+the same `(dt, ds)`, and that is what makes the ordering problem solvable. Live has no
+move, so this is copy-then-delete like the scene reorder, which means the copies can
+clobber each other — moving a block down one scene, `(t,5) → (t,6)` before
+`(t,6) → (t,7)` destroys the clip the second step was going to read. Copies run against
+the direction of travel, far end first, and one comparator covers it: if a source sits on
+another source's target it is exactly one offset further along, so sorting that way
+always puts it first. The scene axis decides whenever `ds` is non-zero; the track axis
+only breaks ties for a purely sideways drag.
+
+Deletes come last, all of them, after every copy — a failure partway then leaves clips
+copied and originals intact, which is the recoverable direction. Only sources nothing
+landed on are cleared; a source that is also someone's target now holds the moved clip.
+
+**An invalid target refuses the whole drag rather than being dropped from it.**
+`duplicate_clip_to` raises on a group slot and on a type mismatch, and a raise partway
+through leaves the set half-moved. `null` is the only answer that can't half-destroy
+something. It also counts `overwrites` — occupied targets that aren't themselves moving —
+because Live overwrites silently and the count is what lets the UI say so first.
 
 **`gridRange.ts`** — shift-click and arrow-key movement, which look trivial and aren't.
 **Both axes work in rendered positions, never in indexes.** `columns` is the visible
