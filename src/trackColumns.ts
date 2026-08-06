@@ -132,8 +132,13 @@ export function buildColumns<T extends GroupableTrack>(
  * names. It doesn't any more: a group track carries its own name in the track
  * header, so a second row saying the same word was redundant. What the span row
  * did carry was the *extent* of a group, and that survives as a colored rule
- * along the top of each column in the run. This says where a run starts, so the
- * left end can be capped and two adjacent groups never read as one.
+ * along the top of each column in the run. This says where a run starts, so
+ * the left end can be capped and two adjacent groups never read as one.
+ *
+ * Live draws that rule as one unbroken bar, crossing the gaps between headers.
+ * Ours is still segment-per-column — the gaps are `border-spacing`, which the
+ * sticky header already paints into, and bridging them is a separate problem
+ * from the color it's bridging.
  *
  * A group column always starts a band. It's the leftmost column of its own
  * group, including when it's nested — a group inside another begins a run in
