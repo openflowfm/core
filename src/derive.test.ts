@@ -10,7 +10,12 @@ import {
   songsOfScenes,
   type SceneInput,
 } from './derive.js';
-import { compilePattern } from './namePattern.js';
+import {
+  BPM_SCENE_PATTERN,
+  compilePattern,
+  DEFAULT_SCENE_PATTERN,
+  LEGACY_SCENE_PATTERN,
+} from './namePattern.js';
 
 const PATTERN = compilePattern('{song} {bpm?} {key?} [{role?}]')!;
 
@@ -339,9 +344,10 @@ describe('reading more than one convention', () => {
   // The migration path. A set is normally *half* converted — some scenes
   // renamed into the current convention, the rest still on the old one — and
   // both have to land in the same song or the grid falls apart mid-pass.
-  const CURRENT = compilePattern('([{role}])? (@{bpm?}-{key?})? {song}')!;
-  const LEGACY = compilePattern('{song} {bpm?} {key?} [{role?}]')!;
-  const BOTH = [CURRENT, LEGACY];
+  const CURRENT = compilePattern(DEFAULT_SCENE_PATTERN)!;
+  const WITH_BPM = compilePattern(BPM_SCENE_PATTERN)!;
+  const LEGACY = compilePattern(LEGACY_SCENE_PATTERN)!;
+  const ALL = [CURRENT, WITH_BPM, LEGACY];
 
   it('accepts a single pattern or a list, so existing callers are unaffected', () => {
     const one = derive([scene(0, 'Nightfall 128 Bm [verse]')], LEGACY);
@@ -351,18 +357,22 @@ describe('reading more than one convention', () => {
 
   it('reads each scene with whichever pattern gets the most out of it', () => {
     // Every scene pattern is *total* — `{song}` is free and the rest optional,
-    // so either one matches either name by swallowing it whole. Picking the
-    // first match would mean never consulting the second pattern at all.
+    // so each one matches every name by swallowing it whole. Picking the first
+    // match would mean never consulting the migration patterns at all.
     const d = derive(
       [
-        scene(0, '[INTRO] @128-Bm NIGHTFALL'),
-        scene(1, 'Nightfall 128 Bm [verse]'),
+        scene(0, '[INTRO] @Bm NIGHTFALL'),
+        scene(1, '[BUILD] @128-Bm NIGHTFALL'),
+        scene(2, 'Nightfall 128 Bm [verse]'),
       ],
-      BOTH,
+      ALL,
     );
     expect(d.scenes[0]).toMatchObject({ song: 'NIGHTFALL', role: 'INTRO' });
-    expect(d.scenes[1]).toMatchObject({ song: 'Nightfall', role: 'verse' });
+    expect(d.scenes[0]!.fields).toMatchObject({ key: 'Bm' });
+    expect(d.scenes[1]).toMatchObject({ song: 'NIGHTFALL', role: 'BUILD' });
     expect(d.scenes[1]!.fields).toMatchObject({ bpm: '128', key: 'Bm' });
+    expect(d.scenes[2]).toMatchObject({ song: 'Nightfall', role: 'verse' });
+    expect(d.scenes[2]!.fields).toMatchObject({ bpm: '128', key: 'Bm' });
   });
 
   it('collects a half-converted song into one entry, not two', () => {
@@ -370,11 +380,11 @@ describe('reading more than one convention', () => {
     // same song across the convention change rather than a split library.
     const d = derive(
       [
-        scene(0, '[INTRO] @128-Bm NIGHTFALL'),
-        scene(1, 'Nightfall 128 Bm [verse]'),
+        scene(0, '[INTRO] @Bm NIGHTFALL'),
+        scene(1, '[VERSE] @128-Bm NIGHTFALL'),
         scene(2, 'Nightfall 128 Bm [chorus]'),
       ],
-      BOTH,
+      ALL,
     );
     expect(d.songs).toHaveLength(1);
     expect(d.songs[0]!.scenes).toEqual([0, 1, 2]);
@@ -385,7 +395,7 @@ describe('reading more than one convention', () => {
   });
 
   it('breaks a tie toward the earlier pattern', () => {
-    const d = derive([scene(0, 'Audio 5')], BOTH);
+    const d = derive([scene(0, 'Audio 5')], ALL);
     expect(d.scenes[0]!.song).toBe('Audio 5');
     expect(d.unmapped).toEqual([]);
   });

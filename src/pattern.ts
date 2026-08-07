@@ -18,6 +18,9 @@ export const TOKENS = [
   'n',
 ] as const;
 
+/** The set-wide clip naming convention shown when the inspector first loads. */
+export const DEFAULT_CLIP_PATTERN = '{key} {role} {track}';
+
 export type Token = (typeof TOKENS)[number];
 
 export type TokenValues = Partial<Record<Token, string | number | undefined>>;

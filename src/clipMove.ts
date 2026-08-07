@@ -76,6 +76,44 @@ function orderSteps(steps: ClipMoveStep[], dt: number, ds: number): ClipMoveStep
   return [...steps].sort(bySequence);
 }
 
+/**
+ * The set's clips as they read once the plan has run, so a drag doesn't have to
+ * be followed by re-walking the set. The counterpart to `applyOps`, and it has
+ * an easier job: a move touches no clip's fields, only which slot holds it.
+ *
+ * **Replays the steps in plan order against the result so far**, which is the
+ * whole reason this isn't a one-line remap. `orderSteps` arranged them so that
+ * a step reading a slot an earlier step wrote sees what Live will see, and
+ * running them in any other order here would model a set Live never produces.
+ * Then every delete, after every copy, exactly as `lom.ts` runs it.
+ *
+ * Sound only when the move fully succeeded — `lom.ts` skips the entire delete
+ * pass if any copy failed, so a partial result is not this shape at all, and
+ * the caller has to re-read rather than guess.
+ *
+ * Returned in track-then-scene order to match the walk's, so a locally-updated
+ * set is indistinguishable from a freshly-read one.
+ */
+export function applyClipMove<T extends ClipAt>(
+  clips: readonly T[],
+  plan: { steps: readonly ClipMoveStep[]; remove: readonly ClipAt[] },
+): T[] {
+  const at = new Map<string, T>();
+  for (const c of clips) at.set(key(c.t, c.s), c);
+
+  for (const st of plan.steps) {
+    const src = at.get(key(st.fromT, st.fromS));
+    // A step with no clip under it means the plan was built against a set that
+    // has since changed. Nothing to copy, and Live would have failed the same
+    // way — which the caller's failure check catches before it ever gets here.
+    if (!src) continue;
+    at.set(key(st.toT, st.toS), { ...src, t: st.toT, s: st.toS });
+  }
+  for (const c of plan.remove) at.delete(key(c.t, c.s));
+
+  return [...at.values()].sort((a, b) => (a.t === b.t ? a.s - b.s : a.t - b.t));
+}
+
 export interface ClipMoveRequest {
   /** The clips being dragged. Duplicates and empties are the caller's to avoid. */
   sources: readonly ClipAt[];

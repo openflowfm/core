@@ -2,7 +2,7 @@
 //
 // A role is stored in the scene's own name, as a bracketed tag at the front:
 //
-//   "[CHORUS] @128-Bm NIGHTFALL"
+//   "[CHORUS] @Bm NIGHTFALL"
 //
 // **The set is the storage.** Scenes have no stable id in the LOM, so a sidecar
 // file could only be keyed by index — which silently relabels everything below
@@ -17,9 +17,10 @@
 // unknown, which is the difference between a failure you can see and fix and one
 // that just loses data.
 //
-// That's also why the brackets survive while the facts group dropped its own:
-// `@128-Bm` is recognised by *shape* and needs no vocabulary to be read back, so
-// it can't fail the same way. Asymmetric on purpose, not for want of tidying.
+// That's also why the brackets survive while the key dropped its own closing
+// delimiter: `@Bm` is recognised by *shape* and needs no vocabulary to be read
+// back, so it can't fail the same way. Asymmetric on purpose, not for want of
+// tidying.
 //
 // Pure and transport-free, like the rest of core/. Nothing here knows what a
 // palette index means to Live; colors travel through as opaque numbers.
@@ -271,22 +272,28 @@ export interface SceneWriteOp {
 }
 
 /**
+ * A scene as the snapshot holds it — addressed `i`, the way every scene arrives
+ * from the walk, as against the `s` that everything writing to one uses.
+ * Structurally typed over `BSV.Scene` rather than importing it, for the reason
+ * `ops.ts` gives.
+ */
+export interface SceneRow {
+  i: number;
+  name: string;
+  colorIndex: number;
+  color: number;
+  tempo: number;
+}
+
+/**
  * The scene half of a snapshot, in the shape the op builders want.
  *
- * Structurally typed over the snapshot's `Scene` rather than importing it —
  * `i` becomes `s` because everything addressed at a scene on the wire calls it
  * `s`, and having both names for the same number in one module is how an op
- * ends up written to the wrong row.
+ * ends up written to the wrong row. This function and `applySceneOps` are the
+ * only two places the crossing happens.
  */
-export function sceneFields(
-  scenes: readonly {
-    i: number;
-    name: string;
-    colorIndex: number;
-    color: number;
-    tempo: number;
-  }[],
-): SceneFields[] {
+export function sceneFields(scenes: readonly SceneRow[]): SceneFields[] {
   return scenes.map((sc) => ({
     s: sc.i,
     name: sc.name,
@@ -429,6 +436,49 @@ export function inverseSceneOps(
     if (changed) out.push(back);
   }
   return out;
+}
+
+/**
+ * `scenes` as they read once `ops` have landed — the scene half of `applyOps`,
+ * and there for the same reason: tagging four scenes with a role should not
+ * cost a walk of the whole set.
+ *
+ * The same caveat applies, and callers must honour it. Live reports how many
+ * ops it took, never which, so this is only the truth when it took all of them.
+ *
+ * No `rgbFor` here, unlike the clip side: a `SceneWriteOp` already carries the
+ * RGB next to the index, because that RGB is the only form Live will accept for
+ * a scene in the first place. The index rides along as the intent.
+ */
+export function applySceneOps<T extends SceneRow>(
+  scenes: readonly T[],
+  ops: readonly SceneWriteOp[],
+): T[] {
+  if (ops.length === 0) return [...scenes];
+
+  const at = new Map<number, SceneWriteOp>();
+  for (const op of ops) {
+    const prev = at.get(op.s);
+    at.set(op.s, prev ? { ...prev, ...op } : op);
+  }
+
+  return scenes.map((sc) => {
+    const op = at.get(sc.i);
+    if (!op) return sc;
+    const colored = op.colorIndex !== undefined && op.color !== undefined;
+    return {
+      ...sc,
+      name: op.name ?? sc.name,
+      colorIndex: colored ? op.colorIndex! : sc.colorIndex,
+      color: colored ? op.color! : sc.color,
+      // Normalised the way `tempoOps` does, because that's how it reads back:
+      // Live answers -1 for a scene with no tempo of its own, so storing the
+      // sub-minimum value we sent would leave the grid disagreeing with the
+      // next real snapshot over a scene nobody touched again.
+      tempo:
+        op.tempo === undefined ? sc.tempo : op.tempo >= MIN_TEMPO ? op.tempo : -1,
+    };
+  });
 }
 
 /**

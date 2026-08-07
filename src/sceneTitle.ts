@@ -1,26 +1,21 @@
 // The scene name convention, everything except the role tag.
 //
-//   [CHORUS] @128-Bm NIGHTFALL
-//    └ role┘  │   │  └ song ┘    (roles.ts owns the tag)
-//             │   └ key
-//             └ bpm
+//   [CHORUS] @Bm NIGHTFALL
+//    └ role┘  │   └ song ┘    (roles.ts owns the tag)
+//             └ key
 //
 // `roles.ts` owns the bracketed tag at the front; this owns what follows it, and
 // the two compose — `titleOps` rewrites the title and puts the scene's own role
 // back on.
 //
-// **Role first, facts second, name last**, so a column of scene names reads as
+// **Role first, key second, name last**, so a column of scene names reads as
 // structure rather than as a list of titles. The cost is that Live's own narrow
 // scene column truncates the *name* rather than the metadata; our grid lifts the
 // role into a chip, so it only bites in Live.
 //
-// The facts carry one delimiter each and neither is decoration. `@` opens the
-// group from the front — it can't appear in a role and won't start a title, so
-// the group is identifiable before you've read it, which is what makes a closing
-// bracket unnecessary. `-` joins bpm to key and **drops with whichever is
-// missing**, because after the `@` a digit begins a bpm and a letter begins a
-// key: `@128-Bm`, `@128` and `@Bm` are all distinguishable with no further
-// punctuation.
+// `@` opens the key from the front — it can't appear in a role and won't start
+// a title, so the field is identifiable without a closing delimiter. BPM is a
+// property of the Scene itself and is deliberately not written into its name.
 //
 // **The song is written in caps and read case-insensitively.** `songKey` already
 // folds case, so NIGHTFALL and Nightfall are one song and the uppercase is
@@ -111,11 +106,11 @@ function takeTrailingFacts(words: string[]): { bpm: string; key: string } {
 }
 
 /**
- * Split a title into its three parts.
+ * Split a title into its song and key, plus any BPM carried by an older name.
  *
  * Reads a leading `@` group first. Failing that it falls back to the **old**
  * convention's trailing `128 Bm`, so a set named the previous way still shows
- * its facts and a rename converts it rather than silently dropping them.
+ * its metadata while it migrates. Formatting deliberately leaves the BPM out.
  *
  * Anything it doesn't recognise stays in `song`, so a title that never followed
  * either convention survives.
@@ -138,17 +133,17 @@ export function parseTitle(title: string): SceneTitle {
 }
 
 /**
- * The three parts back into a title.
+ * The name-bearing parts back into a title. BPM belongs to `Scene.tempo`.
  *
  * The song is uppercased here, which is the only place it happens — identity is
  * `songKey`, which folds case, so this is presentation and can't fork a song in
  * the library.
  */
 export function formatTitle(t: SceneTitle): string {
-  const bpm = t.bpm.trim();
   const key = t.key.trim();
-  const facts = bpm !== '' || key !== '' ? `@${bpm}${bpm && key ? '-' : ''}${key}` : '';
-  return [facts, t.song.trim().toUpperCase()].filter((p) => p !== '').join(' ');
+  return [key ? `@${key}` : '', t.song.trim().toUpperCase()]
+    .filter((p) => p !== '')
+    .join(' ');
 }
 
 /** `t` with the patch's present fields replaced. */

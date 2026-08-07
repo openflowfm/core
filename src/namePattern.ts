@@ -54,32 +54,28 @@ export type TokenRegistry = Readonly<Record<string, TokenSpec>>;
 /**
  * The convention the app writes.
  *
- *   [CHORUS] @128-Bm NIGHTFALL
- *    └ role┘  │  │   └ song ┘
- *             │  └ key
- *             └ bpm
+ *   [CHORUS] @Bm NIGHTFALL
+ *    └ role┘  │   └ song ┘
+ *             └ key
  *
- * **Role first, then the facts, then the name**, so a column of scene names
+ * **Role first, then the key, then the name**, so a column of scene names
  * reads as structure rather than as a list of titles. Everything but `{song}` is
  * optional, so a set nobody has mapped yet still parses — every scene reads as a
  * song with no facts rather than as 848 unmapped rows.
  *
- * Two characters do all the delimiting, and neither is decoration:
- *
- * - **`@` opens the facts from the front.** It can't appear in `ROLE_CHARS` and
- *   won't start a song title, so the group is identifiable before you've read
- *   any of it — which is what makes the *closing* bracket unnecessary.
- * - **`-` joins them, and drops when either side is missing.** After the `@` a
- *   digit begins a bpm and a letter begins a key, so `@128-Bm`, `@128` and `@Bm`
- *   are all distinguishable with no further punctuation. That's the whole reason
- *   the facts need no bracket of their own.
+ * `@` opens the key from the front. It can't appear in `ROLE_CHARS` and won't
+ * start a song title, so the field is identifiable without a closing bracket.
+ * BPM lives on `Scene.tempo`, where firing the scene can actually act on it.
  *
  * The role keeps its brackets, and that asymmetry is deliberate: a bare word
  * could only be recognised by matching the vocabulary, so renaming a role would
- * make every scene using it silently roleless. `bpm` and `key` are recognised by
- * *shape*, so they need no such protection. See `roles.ts`.
+ * make every scene using it silently roleless. `key` is recognised by *shape*,
+ * so it needs no such protection. See `roles.ts`.
  */
-export const DEFAULT_SCENE_PATTERN = '([{role}])? (@{bpm?}-{key?})? {song}';
+export const DEFAULT_SCENE_PATTERN = '([{role}])? (@{key?})? {song}';
+
+/** The immediately previous convention, still read while sets migrate. */
+export const BPM_SCENE_PATTERN = '([{role}])? (@{bpm?}-{key?})? {song}';
 
 /**
  * The convention this app wrote before the one above — `Nightfall 128 Bm [chorus]`.

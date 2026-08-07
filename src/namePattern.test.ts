@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BPM_SCENE_PATTERN,
   compilePattern,
   DEFAULT_SCENE_PATTERN,
   describePatternError,
@@ -24,9 +25,14 @@ const compile = (p: string, r?: TokenRegistry) => {
 
 describe('accepting and rejecting patterns', () => {
   it('compiles the default scene pattern — App.tsx asserts this with a !', () => {
-    expect(DEFAULT_SCENE_PATTERN).toBe('([{role}])? (@{bpm?}-{key?})? {song}');
+    expect(DEFAULT_SCENE_PATTERN).toBe('([{role}])? (@{key?})? {song}');
     expect(patternErrors(DEFAULT_SCENE_PATTERN)).toEqual([]);
     expect(compilePattern(DEFAULT_SCENE_PATTERN)).not.toBeNull();
+  });
+
+  it('still compiles the previous bpm-in-name convention', () => {
+    expect(BPM_SCENE_PATTERN).toBe('([{role}])? (@{bpm?}-{key?})? {song}');
+    expect(patternErrors(BPM_SCENE_PATTERN)).toEqual([]);
   });
 
   it('still compiles the legacy pattern — existing sets are named that way', () => {
@@ -115,37 +121,35 @@ describe('accepting and rejecting patterns', () => {
   });
 });
 
-describe('the shipped convention: ([{role}])? (@{bpm?}-{key?})? {song}', () => {
+describe('the shipped convention: ([{role}])? (@{key?})? {song}', () => {
   const c = compile(FULL);
 
   it('writes a full name', () => {
     expect(c.format({ song: 'Nightfall', bpm: '128', key: 'Bm', role: 'chorus' })).toBe(
-      '[chorus] @128-Bm Nightfall',
+      '[chorus] @Bm Nightfall',
     );
   });
 
   it('reads a full name back', () => {
-    expect(c.parse('[chorus] @128-Bm Nightfall')).toEqual({
+    expect(c.parse('[chorus] @Bm Nightfall')).toEqual({
       song: 'Nightfall',
-      bpm: '128',
       key: 'Bm',
       role: 'chorus',
     });
   });
 
   it('keeps a multi-word song together', () => {
-    expect(c.parse('[post chorus] @124-F#m Glass Tunnel')).toEqual({
+    expect(c.parse('[post chorus] @F#m Glass Tunnel')).toEqual({
       song: 'Glass Tunnel',
-      bpm: '124',
       key: 'F#m',
       role: 'post chorus',
     });
   });
 
   it('drops a missing role and its brackets, not just the value', () => {
-    // "[] @128-Bm Nightfall" would be the naive result, and it wouldn't parse.
+    // "[] @Bm Nightfall" would be the naive result, and it wouldn't parse.
     expect(c.format({ song: 'Nightfall', bpm: '128', key: 'Bm' })).toBe(
-      '@128-Bm Nightfall',
+      '@Bm Nightfall',
     );
   });
 
@@ -154,22 +158,13 @@ describe('the shipped convention: ([{role}])? (@{bpm?}-{key?})? {song}', () => {
     expect(c.format({ song: 'Nightfall' })).toBe('Nightfall');
   });
 
-  it('drops the hyphen with whichever fact is missing', () => {
-    // The separator rule, and the reason the facts need no bracket of their
-    // own: after the @, a digit is a bpm and a letter is a key, so all three
-    // shapes are distinguishable with one character of punctuation.
-    expect(c.format({ song: 'Nightfall', bpm: '128' })).toBe('@128 Nightfall');
+  it('ignores bpm because it belongs to Scene.tempo', () => {
+    expect(c.format({ song: 'Nightfall', bpm: '128' })).toBe('Nightfall');
     expect(c.format({ song: 'Nightfall', key: 'Bm' })).toBe('@Bm Nightfall');
   });
 
-  it('reads each of those back unambiguously', () => {
-    expect(c.parse('@128 Nightfall')).toEqual({ song: 'Nightfall', bpm: '128' });
+  it('reads the key back unambiguously', () => {
     expect(c.parse('@Bm Nightfall')).toEqual({ song: 'Nightfall', key: 'Bm' });
-    expect(c.parse('@128-Bm Nightfall')).toEqual({
-      song: 'Nightfall',
-      bpm: '128',
-      key: 'Bm',
-    });
   });
 
   it('reads a song that never followed the convention as all song', () => {
@@ -181,10 +176,9 @@ describe('the shipped convention: ([{role}])? (@{bpm?}-{key?})? {song}', () => {
 
   it('round-trips every shape the convention can produce', () => {
     const names = [
-      '[chorus] @128-Bm Nightfall',
-      '[post chorus] @124-F#m Glass Tunnel',
-      '@128-Bm Nightfall',
-      '[chorus] @128 Nightfall',
+      '[chorus] @Bm Nightfall',
+      '[post chorus] @F#m Glass Tunnel',
+      '@Bm Nightfall',
       '[chorus] @Bm Nightfall',
       '[verse] Nightfall',
       'Nightfall',
@@ -306,7 +300,9 @@ describe('parse', () => {
 });
 
 describe('format', () => {
-  const c = compile(FULL);
+  // Use the previous pattern here because it carries a numeric token; the
+  // formatter itself remains string-or-number regardless of today's scheme.
+  const c = compile(BPM_SCENE_PATTERN);
 
   it('accepts numbers as well as strings', () => {
     expect(c.format({ song: 'Nightfall', bpm: 128 })).toBe('@128 Nightfall');
@@ -376,7 +372,6 @@ describe('compilePattern', () => {
     // what makes it droppable.
     expect(compile(FULL).tokens).toEqual([
       { name: 'role', optional: true },
-      { name: 'bpm', optional: true },
       { name: 'key', optional: true },
       { name: 'song', optional: false },
     ]);

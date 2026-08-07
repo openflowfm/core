@@ -73,6 +73,63 @@ export function inverseOps(
 }
 
 /**
+ * A clip as the grid holds it: the fields a write can change, plus the RGB the
+ * UI draws. `color` is never written — it follows `colorIndex`, which is why
+ * `applyOps` needs to be told how to resolve one to the other.
+ */
+export interface ColoredClip extends ClipFields {
+  color: number;
+}
+
+/**
+ * `clips` as they read once `ops` have landed, so a write doesn't have to be
+ * followed by re-walking the set.
+ *
+ * The walk costs tens of thousands of LOM reads; a rename changes one string,
+ * and the caller already knows which one. This is that arithmetic, here rather
+ * than in the UI because getting it wrong shows the user a grid that disagrees
+ * with Live and gives no hint which of the two is lying.
+ *
+ * **Only sound when Live took every op.** `apply` answers with counts, not with
+ * *which* ops it skipped, so a partial write cannot be reproduced from here.
+ * Callers compare `applied` against what they sent and fall back to a real
+ * snapshot when the two differ — that fallback is what makes this safe to be
+ * optimistic about.
+ *
+ * Ops are applied in order, so a second write to the same cell wins, the same
+ * as it would in Live.
+ *
+ * `rgbFor` resolves a palette slot to the RGB Live renders for it. Core has no
+ * palette and shouldn't grow one — the caller holds it. `undefined` for an
+ * unknown slot leaves the clip's existing RGB in place rather than painting it
+ * black; a wrong color that looks deliberate is worse than a stale one, and the
+ * caller should be re-reading rather than getting here at all.
+ */
+export function applyOps<T extends ColoredClip>(
+  clips: readonly T[],
+  ops: readonly WriteOp[],
+  rgbFor: (colorIndex: number) => number | undefined,
+): T[] {
+  if (ops.length === 0) return [...clips];
+
+  const at = new Map<string, WriteOp>();
+  for (const op of ops) {
+    const k = key(op.t, op.s);
+    const prev = at.get(k);
+    at.set(k, prev ? { ...prev, ...op } : op);
+  }
+
+  return clips.map((c) => {
+    const op = at.get(key(c.t, c.s));
+    if (!op) return c;
+    const name = op.name ?? c.name;
+    const colorIndex = op.colorIndex ?? c.colorIndex;
+    const color = op.colorIndex === undefined ? c.color : (rgbFor(op.colorIndex) ?? c.color);
+    return { ...c, name, colorIndex, color };
+  });
+}
+
+/**
  * Color writes for `cells`, dropping the ones that would change nothing.
  *
  * The filter is what makes recoloring a scene honest about its own size: a

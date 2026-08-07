@@ -6,9 +6,16 @@ import {
   songRows,
 } from './songRows.js';
 import { derive, type SceneInput } from './derive.js';
-import { compilePattern, DEFAULT_SCENE_PATTERN } from './namePattern.js';
+import {
+  BPM_SCENE_PATTERN,
+  compilePattern,
+  DEFAULT_SCENE_PATTERN,
+} from './namePattern.js';
 
-const PATTERN = compilePattern(DEFAULT_SCENE_PATTERN)!;
+const PATTERN = [
+  compilePattern(DEFAULT_SCENE_PATTERN)!,
+  compilePattern(BPM_SCENE_PATTERN)!,
+];
 const scene = (i: number, name: string, tempo = -1, colorIndex = -1): SceneInput => ({
   i,
   name,

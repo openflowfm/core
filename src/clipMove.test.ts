@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { planClipMove, type ClipAt, type ClipMoveTrack } from './clipMove.js';
+import {
+  applyClipMove,
+  planClipMove,
+  type ClipAt,
+  type ClipMoveTrack,
+} from './clipMove.js';
 
 /** Four MIDI tracks, then two audio, then a group at 6. */
 const TRACKS: ClipMoveTrack[] = [
@@ -153,5 +158,89 @@ describe('planClipMove', () => {
       // partial plan is what half-destroys a set.
       expect(plan([at(0, 0), at(3, 0)], 1, 0)).toBeNull();
     });
+  });
+});
+
+describe('applyClipMove', () => {
+  /** A clip with something on it that must survive the move. */
+  const clip = (t: number, s: number, name: string) => ({ t, s, name });
+
+  it('moves the clip and clears the source', () => {
+    const clips = [clip(0, 0, 'Kick')];
+    const p = plan([at(0, 0)], 1, 2, clips)!;
+    expect(applyClipMove(clips, p)).toEqual([clip(1, 2, 'Kick')]);
+  });
+
+  it('carries the clip s fields to its new slot', () => {
+    const clips = [{ ...clip(0, 0, 'Kick'), colorIndex: 14, length: 4 }];
+    const p = plan([at(0, 0)], 0, 1, clips)!;
+    expect(applyClipMove(clips, p)[0]).toEqual({
+      t: 0,
+      s: 1,
+      name: 'Kick',
+      colorIndex: 14,
+      length: 4,
+    });
+  });
+
+  it('destroys what was already at the target', () => {
+    const clips = [clip(0, 0, 'Mover'), clip(0, 5, 'Doomed')];
+    const p = plan([at(0, 0)], 0, 5, clips)!;
+    expect(p.overwrites).toBe(1);
+    expect(applyClipMove(clips, p)).toEqual([clip(0, 5, 'Mover')]);
+  });
+
+  it('shifts a contiguous block without eating its own tail', () => {
+    // The case orderSteps exists for: (0,5)->(0,6) and (0,6)->(0,7). Replaying
+    // in plan order is what keeps 'B' alive.
+    const clips = [clip(0, 5, 'A'), clip(0, 6, 'B')];
+    const p = plan([at(0, 5), at(0, 6)], 0, 1, clips)!;
+    expect(applyClipMove(clips, p)).toEqual([clip(0, 6, 'A'), clip(0, 7, 'B')]);
+  });
+
+  it('shifts a block upwards without eating its own head', () => {
+    const clips = [clip(0, 5, 'A'), clip(0, 6, 'B')];
+    const p = plan([at(0, 5), at(0, 6)], 0, -1, clips)!;
+    expect(applyClipMove(clips, p)).toEqual([clip(0, 4, 'A'), clip(0, 5, 'B')]);
+  });
+
+  it('keeps a source that something else landed on', () => {
+    // (0,6) is both a source and (0,5)'s target, so it must not be cleared.
+    const clips = [clip(0, 5, 'A'), clip(0, 6, 'B')];
+    const out = applyClipMove(clips, plan([at(0, 5), at(0, 6)], 0, 1, clips)!);
+    expect(out.map((c) => c.s)).toEqual([6, 7]);
+  });
+
+  it('leaves clips the move never touched alone, and identical', () => {
+    const clips = [clip(0, 0, 'Mover'), clip(3, 9, 'Bystander')];
+    const out = applyClipMove(clips, plan([at(0, 0)], 1, 1, clips)!);
+    expect(out.find((c) => c.name === 'Bystander')).toBe(clips[1]);
+  });
+
+  it('returns track-then-scene order, matching the walk', () => {
+    const clips = [clip(0, 0, 'a'), clip(1, 0, 'b'), clip(2, 0, 'c')];
+    const p = plan([at(2, 0)], -2, 1, clips)!;
+    expect(applyClipMove(clips, p).map((c) => `${c.t}:${c.s}`)).toEqual([
+      '0:0',
+      '0:1',
+      '1:0',
+    ]);
+  });
+
+  it('does not mutate the input', () => {
+    const clips = [clip(0, 0, 'Kick')];
+    applyClipMove(clips, plan([at(0, 0)], 1, 1, clips)!);
+    expect(clips).toEqual([clip(0, 0, 'Kick')]);
+  });
+
+  it('moves a whole multi-track block sideways', () => {
+    const clips = [clip(0, 0, 'a'), clip(1, 0, 'b')];
+    const p = plan([at(0, 0), at(1, 0)], 1, 0, clips)!;
+    expect(applyClipMove(clips, p)).toEqual([clip(1, 0, 'a'), clip(2, 0, 'b')]);
+  });
+
+  it('skips a step whose source is gone rather than inventing a clip', () => {
+    const p = plan([at(0, 0)], 1, 1, [at(0, 0)])!;
+    expect(applyClipMove([], p)).toEqual([]);
   });
 });

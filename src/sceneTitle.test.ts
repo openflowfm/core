@@ -64,11 +64,9 @@ describe('parse/format round-trip', () => {
   // back rearranged by nothing but its case. Without it, running a patch over a
   // name nobody meant to restructure would quietly restructure it.
   const titles = [
-    '@128-Bm NIGHTFALL',
-    '@124-F#m GLASS TUNNEL',
-    '@128 NIGHTFALL',
     '@Bm NIGHTFALL',
-    '@128-Bm',
+    '@F#m GLASS TUNNEL',
+    '@Bm',
     'ARP JAM 2',
     'AUDIO 3',
     '',
@@ -80,13 +78,15 @@ describe('parse/format round-trip', () => {
     });
   }
 
-  // The old convention doesn't round-trip, and mustn't: reading it and writing
-  // it back is exactly how a set converts. What has to survive is the *facts* —
-  // a conversion that silently dropped the bpm would be the bad kind of rename.
+  // Older conventions don't round-trip, and mustn't: BPM moves out of the name
+  // to Scene.tempo while key, role and song survive the conversion.
   const converts: Array<[string, string]> = [
-    ['Nightfall 128 Bm', '@128-Bm NIGHTFALL'],
-    ['Glass Tunnel 124 F#m', '@124-F#m GLASS TUNNEL'],
-    ['Nightfall 128', '@128 NIGHTFALL'],
+    ['@128-Bm NIGHTFALL', '@Bm NIGHTFALL'],
+    ['@124-F#m GLASS TUNNEL', '@F#m GLASS TUNNEL'],
+    ['@128 NIGHTFALL', 'NIGHTFALL'],
+    ['Nightfall 128 Bm', '@Bm NIGHTFALL'],
+    ['Glass Tunnel 124 F#m', '@F#m GLASS TUNNEL'],
+    ['Nightfall 128', 'NIGHTFALL'],
     ['Nightfall Bm', '@Bm NIGHTFALL'],
   ];
   for (const [old, next] of converts) {
@@ -105,9 +105,10 @@ describe('parse/format round-trip', () => {
 });
 
 describe('formatTitle', () => {
-  it('skips empty parts without leaving double spaces', () => {
+  it('writes key and song, never bpm', () => {
     expect(formatTitle({ song: 'Nightfall', bpm: '', key: 'Bm' })).toBe('@Bm NIGHTFALL');
-    expect(formatTitle({ song: 'Nightfall', bpm: '128', key: '' })).toBe('@128 NIGHTFALL');
+    expect(formatTitle({ song: 'Nightfall', bpm: '128', key: '' })).toBe('NIGHTFALL');
+    expect(formatTitle({ song: 'Nightfall', bpm: '128', key: 'Bm' })).toBe('@Bm NIGHTFALL');
     expect(formatTitle({ song: 'Nightfall', bpm: '', key: '' })).toBe('NIGHTFALL');
     expect(formatTitle({ song: '', bpm: '', key: '' })).toBe('');
   });
@@ -200,34 +201,39 @@ const LEGACY: SceneFields[] = [
 describe('titleOps', () => {
   it('rewrites the song and keeps each scene its own role', () => {
     expect(titleOps(BEFORE, [0, 1], { song: 'Moonrise' })).toEqual([
-      { s: 0, name: '[INTRO] @128-Bm MOONRISE' },
-      { s: 1, name: '[VERSE] @128-Bm MOONRISE' },
+      { s: 0, name: '[INTRO] @Bm MOONRISE' },
+      { s: 1, name: '[VERSE] @Bm MOONRISE' },
     ]);
   });
 
   it('sets one field across scenes that disagree on the others', () => {
     // The case an omitted field exists for: two songs, one shared key.
     expect(titleOps(BEFORE, [0, 2], { key: 'Am' })).toEqual([
-      { s: 0, name: '[INTRO] @128-Am NIGHTFALL' },
-      { s: 2, name: '[CHORUS] @92-Am DAYBREAK' },
+      { s: 0, name: '[INTRO] @Am NIGHTFALL' },
+      { s: 2, name: '[CHORUS] @Am DAYBREAK' },
     ]);
   });
 
-  it('clears a part when the patch sets it empty', () => {
-    // The hyphen goes with the bpm — there's nothing left for it to join.
+  it('never writes bpm into the name', () => {
     expect(titleOps(BEFORE, [1], { bpm: '' })).toEqual([
       { s: 1, name: '[VERSE] @Bm NIGHTFALL' },
     ]);
   });
 
-  it('drops scenes the patch would not change', () => {
+  it('strips bpm from every older name even when the bpm patch matches', () => {
     expect(titleOps(BEFORE, [0, 1, 2], { bpm: '128' })).toEqual([
-      { s: 2, name: '[CHORUS] @128-F#m DAYBREAK' },
+      { s: 0, name: '[INTRO] @Bm NIGHTFALL' },
+      { s: 1, name: '[VERSE] @Bm NIGHTFALL' },
+      { s: 2, name: '[CHORUS] @F#m DAYBREAK' },
     ]);
   });
 
   it('is empty for a patch that changes nothing anywhere', () => {
-    expect(titleOps(BEFORE, [0, 1], {})).toEqual([]);
+    const current = BEFORE.map((scene) => ({
+      ...scene,
+      name: formatTitle(titleOf(scene.name)),
+    }));
+    expect(titleOps(current, [0, 1], {})).toEqual([]);
   });
 
   it('works on a scene with no role tag', () => {
@@ -236,19 +242,18 @@ describe('titleOps', () => {
     ]);
   });
 
-  it('adds bpm and key to a scene that had neither', () => {
+  it('adds key but not bpm to a scene that had neither', () => {
     expect(titleOps(BEFORE, [3], { bpm: '128', key: 'Bm' })).toEqual([
-      { s: 3, name: '@128-Bm UNTAGGED SCENE' },
+      { s: 3, name: '@Bm UNTAGGED SCENE' },
     ]);
   });
 
   it('converts an old-convention set as a side effect of any rename', () => {
     // This is the migration path, and it's why parseTitle still reads trailing
-    // facts: the scenes come across with their bpm, key and role intact rather
-    // than being flattened into a title.
+    // facts: key and role survive, while bpm moves to Scene.tempo.
     expect(titleOps(LEGACY, [0, 1], { key: 'Am' })).toEqual([
-      { s: 0, name: '[INTRO] @128-Am NIGHTFALL' },
-      { s: 1, name: '[CHORUS] @92-Am DAYBREAK' },
+      { s: 0, name: '[INTRO] @Am NIGHTFALL' },
+      { s: 1, name: '[CHORUS] @Am DAYBREAK' },
     ]);
   });
 
@@ -257,7 +262,7 @@ describe('titleOps', () => {
     // one gesture that moves a scene onto the new convention without also
     // changing what it says.
     expect(titleOps(LEGACY, [0], {})).toEqual([
-      { s: 0, name: '[INTRO] @128-Bm NIGHTFALL' },
+      { s: 0, name: '[INTRO] @Bm NIGHTFALL' },
     ]);
   });
 

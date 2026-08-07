@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { render, tokensIn, unknownTokens } from './pattern.js';
+import { DEFAULT_CLIP_PATTERN, render, tokensIn, unknownTokens } from './pattern.js';
+
+it('ships the set-wide clip naming convention', () => {
+  expect(DEFAULT_CLIP_PATTERN).toBe('{key} {role} {track}');
+  expect(unknownTokens(DEFAULT_CLIP_PATTERN)).toEqual([]);
+});
 
 describe('render', () => {
   it('substitutes known tokens', () => {

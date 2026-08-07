@@ -11,12 +11,15 @@ import {
   roleKey,
   roleOps,
   rolesInUse,
+  applySceneOps,
   sceneColorOps,
+  sceneFields,
   sharedRole,
   tempoOps,
   withRole,
   type Role,
   type SceneFields,
+  type SceneRow,
 } from './roles.js';
 import { MIN_TEMPO } from './derive.js';
 
@@ -444,5 +447,101 @@ describe('countUnrevertableColors', () => {
 
   it('is zero for name-only writes', () => {
     expect(countUnrevertableColors(BEFORE, roleOps(BEFORE, [0, 1], 'jam'))).toBe(0);
+  });
+});
+
+describe('applySceneOps', () => {
+  const row = (
+    i: number,
+    name: string,
+    colorIndex: number,
+    tempo = -1,
+  ): SceneRow => ({ i, name, colorIndex, color: colorIndex * 1000, tempo });
+
+  const SCENES: SceneRow[] = [
+    row(0, 'Intro', 14),
+    row(1, '[chorus] Big One', 3),
+    row(2, 'Uncolored', -1, 128),
+  ];
+
+  it('writes the name', () => {
+    const out = applySceneOps(SCENES, [{ s: 0, name: '[verse] Intro' }]);
+    expect(out[0].name).toBe('[verse] Intro');
+    expect(out[0].colorIndex).toBe(14);
+  });
+
+  it('takes the RGB from the op rather than resolving it', () => {
+    // A SceneOp carries both because RGB is the only form Live accepts here.
+    const out = applySceneOps(SCENES, [{ s: 0, colorIndex: 41, color: 999 }]);
+    expect(out[0].colorIndex).toBe(41);
+    expect(out[0].color).toBe(999);
+  });
+
+  it('ignores a color index with no RGB beside it', () => {
+    // Neither half is meaningful alone, and half-applying would leave the grid
+    // drawing one color while claiming another.
+    const out = applySceneOps(SCENES, [{ s: 0, colorIndex: 41 }]);
+    expect(out[0].colorIndex).toBe(14);
+    expect(out[0].color).toBe(14000);
+  });
+
+  it('colors a scene that had none', () => {
+    const out = applySceneOps(SCENES, [{ s: 2, colorIndex: 7, color: 7000 }]);
+    expect(out[2].colorIndex).toBe(7);
+  });
+
+  it('writes a tempo', () => {
+    const out = applySceneOps(SCENES, [{ s: 0, tempo: 174 }]);
+    expect(out[0].tempo).toBe(174);
+  });
+
+  it('normalises a sub-minimum tempo to -1, the way Live reads it back', () => {
+    const out = applySceneOps(SCENES, [{ s: 2, tempo: 0 }]);
+    expect(out[2].tempo).toBe(-1);
+  });
+
+  it('addresses ops by s against the scene s own i', () => {
+    const out = applySceneOps(SCENES, [{ s: 2, name: 'Third' }]);
+    expect(out[2].name).toBe('Third');
+    expect(out[0].name).toBe('Intro');
+  });
+
+  it('leaves untouched scenes identical, not merely equal', () => {
+    const out = applySceneOps(SCENES, [{ s: 0, name: 'x' }]);
+    expect(out[1]).toBe(SCENES[1]);
+    expect(out[2]).toBe(SCENES[2]);
+  });
+
+  it('carries extra fields through untouched', () => {
+    const rich = [{ ...row(0, 'Intro', 14), isEmpty: false }];
+    const out = applySceneOps(rich, [{ s: 0, name: 'Outro' }]);
+    expect(out[0].isEmpty).toBe(false);
+  });
+
+  it('does not mutate the input', () => {
+    applySceneOps(SCENES, [{ s: 0, name: 'x', colorIndex: 41, color: 41000 }]);
+    expect(SCENES[0]).toEqual(row(0, 'Intro', 14));
+  });
+
+  it('merges two ops on one scene, later fields winning', () => {
+    const out = applySceneOps(SCENES, [
+      { s: 0, name: 'first' },
+      { s: 0, name: 'second', tempo: 90 },
+    ]);
+    expect(out[0].name).toBe('second');
+    expect(out[0].tempo).toBe(90);
+  });
+
+  it('round-trips through its own inverse', () => {
+    const ops = [{ s: 0, name: 'Renamed', colorIndex: 41, color: 41000 }];
+    const forward = applySceneOps(SCENES, ops);
+    const back = applySceneOps(forward, inverseSceneOps(sceneFields(SCENES), ops));
+    expect(back).toEqual(SCENES);
+  });
+
+  it('returns a fresh array for no ops', () => {
+    const out = applySceneOps(SCENES, []);
+    expect(out).toEqual(SCENES);
+    expect(out).not.toBe(SCENES);
   });
 });

@@ -10,9 +10,9 @@ src/pattern.ts       token template evaluation + song-title parsing
 src/trackColumns.ts  Live's flat track list → grid columns + group color bands
 src/groupSlot.ts     what a group track's clip slot shows at one scene
 src/gridRange.ts     block selection + active-cell movement over the columns
-src/ops.ts           building clip writes, and reversing them
+src/ops.ts           building clip writes, reversing them, and applying them
 src/roles.ts         scene roles: the [role] tag, and scene writes
-src/sceneTitle.ts    the rest of the scene name — @{bpm}-{key} {SONG}
+src/sceneTitle.ts    the rest of the scene name — @{key} {SONG}
 src/namePattern.ts   patterns that can be read back: format, parse, validate
 src/derive.ts        the set → the mapping, by reversing the pattern
 src/songRows.ts      songs → grid rows + song headers, and what folding hides
@@ -23,7 +23,7 @@ src/colorRules.ts    a color per song, from a rule over the whole set
 src/index.ts         barrel
 ```
 
-Run with `npm test` from the repo root. 389 tests.
+Run with `npm test` from the repo root. 426 tests.
 
 ## The one rule
 
@@ -139,6 +139,12 @@ landed on are cleared; a source that is also someone's target now holds the move
 through leaves the set half-moved. `null` is the only answer that can't half-destroy
 something. It also counts `overwrites` — occupied targets that aren't themselves moving —
 because Live overwrites silently and the count is what lets the UI say so first.
+
+`applyClipMove` is the drag's answer to `applyOps`: where the clips end up, so a drop
+doesn't cost a walk of the whole set. It **replays the steps in plan order** rather than
+remapping them in one pass, and that's the whole reason it isn't a one-liner — the order
+`orderSteps` chose is what keeps a block from eating its own tail, and any other order
+here would model a set Live never produces.
 
 **`gridRange.ts`** — shift-click and arrow-key movement, which look trivial and aren't.
 **Both axes work in rendered positions, never in indexes.** `columns` is the visible
@@ -323,11 +329,29 @@ empty result *meaningful* — it says the write had no effect to undo, not that 
 already that color should write 8, not 30. A progress bar reporting work that isn't
 happening is a lie about cost.
 
+`applyOps` runs the batch the *other* way — the clips as they'll read once the write has
+landed — and it exists so a write doesn't have to be followed by re-walking the set. A
+full walk is tens of thousands of LOM reads; a rename changes one string, and the caller
+already knows which. `applySceneOps` in `roles.ts` and `applyClipMove` in `clipMove.ts`
+are the same idea for scenes and for a drag.
+
+**All three are only sound when the operation fully succeeded**, and the honesty is in the
+caller. Live reports how many ops it took, never *which*, so a partial write cannot be
+reproduced from here and none of these tries — the UI compares `applied` against what it
+sent and re-reads the set when they differ. Optimism is safe exactly as far as that check
+goes and no further.
+
+Two details that would otherwise be guesses. `applyOps` takes an `rgbFor` callback rather
+than a palette, because a clip's color goes to Live as an index but is drawn from RGB, and
+core has no palette and shouldn't grow one. `applySceneOps` needs no such thing — a scene
+op already carries the RGB next to the index, that being the only form Live accepts for a
+scene at all.
+
 **`roles.ts`** — what a scene is *for*: `intro`, `verse`, `chorus`, `jam`. One role per
 scene, stored as a bracketed tag in the scene's own name:
 
 ```
-[CHORUS] @128-Bm NIGHTFALL
+[CHORUS] @Bm NIGHTFALL
 ```
 
 **The set is the storage, and that's the design.** Scenes have no stable id in the LOM,
@@ -359,7 +383,7 @@ less than it claims is exactly what this module is written to avoid.
 
 **`tempoOps` is the one write in here that changes how the set sounds.** Everything else
 renames or recolors; a scene with its own tempo enabled changes the *song* tempo the
-moment it fires. It's a separate op from the `{bpm}` name token for exactly that reason —
+moment it fires. BPM therefore lives on `Scene.tempo`, separately from the scene name;
 folding it into a rename would make a naming pass quietly alter playback. Below
 `MIN_TEMPO` means "clear it", which is also the way back out after turning it on.
 
@@ -370,29 +394,26 @@ undoable and there's no counterpart to `countUnrevertableColors`.
 **`sceneTitle.ts`** — everything in a scene name *except* the role tag:
 
 ```
-[CHORUS] @128-Bm NIGHTFALL
- └ role┘  │   │  └ song ┘     roles.ts owns the tag
-          │   └ key
-          └ bpm
+[CHORUS] @Bm NIGHTFALL
+ └ role┘  │   └ song ┘     roles.ts owns the tag
+          └ key
 ```
 
-Three optional parts in that order. `roles.ts` owns the tag, this owns what follows it,
-and `titleOps` composes them — it rewrites the title and puts the scene's own role back
-on, so renaming a song across eighteen scenes doesn't disturb the roles you assigned them.
+An optional key precedes the required song. `roles.ts` owns the tag, this owns what
+follows it, and `titleOps` composes them — it rewrites the title and puts the scene's
+own role back on, so renaming a song across eighteen scenes doesn't disturb the roles
+you assigned them.
 
-**Role first, facts second, name last**, so a column of scene names reads as structure
+**Role first, key second, name last**, so a column of scene names reads as structure
 rather than as a list of titles. The cost is real and worth knowing: Live's own narrow
 scene column now truncates the *name* rather than the metadata. Our grid lifts the role
 into a chip, so it only bites in Live.
 
-**Two characters do all the delimiting, and neither is decoration.** `@` opens the facts
-from the front — it can't appear in `ROLE_CHARS` and won't start a title, so the group is
-identifiable before you've read any of it, which is what makes a closing bracket
-unnecessary. `-` joins bpm to key and **drops with whichever is missing**, because after
-the `@` a digit begins a bpm and a letter begins a key: `@128-Bm`, `@128` and `@Bm` are
-all distinguishable with nothing further. That asymmetry with the role's brackets is
-deliberate — a role is recognised by *vocabulary* and so must stay visible when its name
-is unknown; a fact is recognised by *shape* and can't fail the same way.
+`@` opens the key from the front. It can't appear in `ROLE_CHARS` and won't start a
+title, so the key is identifiable without a closing delimiter. That asymmetry with the
+role's brackets is deliberate — a role is recognised by *vocabulary* and so must stay
+visible when its name is unknown; a key is recognised by *shape* and can't fail the
+same way. BPM is stored independently on Live's `Scene.tempo` property.
 
 **Parsing is anchored at the front and never guesses in the middle.** The facts are read
 only from a leading `@` group, so `Arp Jam 2` keeps its whole title rather than having the
@@ -407,11 +428,10 @@ so `NIGHTFALL` and `Nightfall` are one song and the uppercase is presentation ra
 identity — which is exactly what stops the convention change from splitting the library in
 two while a set is half-converted.
 
-`parseTitle` also still reads the **old** convention's trailing `128 Bm`. That's the
-migration path: a set named the previous way keeps showing its facts, and any rename
-converts it rather than flattening the bpm and key into the title. A no-op patch is
-therefore not a no-op rename on an old-convention scene, which is the one gesture that
-moves a scene onto the new convention without changing what it says.
+`parseTitle` also still reads both older BPM-bearing forms: leading `@128-Bm` and the
+legacy trailing `128 Bm`. That's the migration path: a set named either way keeps
+showing its metadata, and any rename writes the current `[ROLE] @KEY SONG` convention.
+A no-op patch is therefore not a no-op rename on an old-convention scene.
 
 `TitlePatch` distinguishes **absent from empty**, and that distinction is the feature:
 an omitted field is left alone on every scene, an empty string clears that part.
@@ -432,7 +452,7 @@ generalisation `sceneTitle.ts` is a hand-written special case of. A pattern comp
 into a formatter, a parser, and a verdict on whether it was safe to compile at all.
 
 **The parser is the point.** Writing names is easy; the scheme rests on being able to
-look at `[CHORUS] @128-Bm NIGHTFALL` six months later and recover which song and role it
+look at `[CHORUS] @Bm NIGHTFALL` six months later and recover which song and role it
 belongs to with nothing stored on the side. That's what lets the mapping live in the set,
 need no ids, and travel with the `.als`.
 
