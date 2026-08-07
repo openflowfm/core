@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { orderScenes, type OrderedScene } from './songOrder.js';
+import {
+  orderScenes,
+  sortSongOrder,
+  type OrderedScene,
+  type SortableSong,
+} from './songOrder.js';
 
 /** `'a a b - b'` — one scene per token, `-` for a scene with no song. */
 function set(spec: string): OrderedScene[] {
@@ -85,5 +90,72 @@ describe('orderScenes', () => {
       const { order } = orderScenes(scenes, listed);
       expect([...order].sort((a, b) => a - b)).toEqual(scenes.map((sc) => sc.s));
     }
+  });
+});
+
+const songs: SortableSong[] = [
+  { songKey: 'zulu', name: 'Zulu', tag: 'ORIGINAL', key: 'Am', bpm: '128' },
+  { songKey: 'alpha', name: 'Alpha', tag: 'COVER', key: 'Bm', bpm: '120' },
+  { songKey: 'bravo', name: 'Bravo', tag: 'COVER', key: 'Am', bpm: '124' },
+  { songKey: 'charlie', name: 'Charlie', tag: 'COVER', key: 'Am', bpm: '118' },
+  { songKey: 'untagged', name: 'Untagged', tag: '', key: '', bpm: '' },
+];
+
+describe('sortSongOrder', () => {
+  it('sorts by one field in either direction', () => {
+    expect(sortSongOrder(songs, [{ field: 'name', direction: 'asc' }])).toEqual([
+      'alpha',
+      'bravo',
+      'charlie',
+      'untagged',
+      'zulu',
+    ]);
+    expect(sortSongOrder(songs, [{ field: 'bpm', direction: 'desc' }])).toEqual([
+      'zulu',
+      'bravo',
+      'alpha',
+      'charlie',
+      'untagged',
+    ]);
+  });
+
+  it('uses each level only to break ties in the levels above it', () => {
+    expect(
+      sortSongOrder(songs, [
+        { field: 'tag', direction: 'asc' },
+        { field: 'key', direction: 'asc' },
+        { field: 'bpm', direction: 'desc' },
+        { field: 'name', direction: 'asc' },
+      ]),
+    ).toEqual(['bravo', 'charlie', 'alpha', 'zulu', 'untagged']);
+  });
+
+  it('keeps missing metadata last in both directions', () => {
+    expect(sortSongOrder(songs, [{ field: 'tag', direction: 'asc' }]).at(-1)).toBe(
+      'untagged',
+    );
+    expect(sortSongOrder(songs, [{ field: 'tag', direction: 'desc' }]).at(-1)).toBe(
+      'untagged',
+    );
+  });
+
+  it('preserves set order when the hierarchy leaves songs tied', () => {
+    expect(sortSongOrder(songs, [])).toEqual(songs.map((song) => song.songKey));
+    expect(sortSongOrder(songs, [{ field: 'tag', direction: 'asc' }]).slice(0, 3)).toEqual([
+      'alpha',
+      'bravo',
+      'charlie',
+    ]);
+  });
+
+  it('compares numeric bpm values numerically, not lexically', () => {
+    const tempos: SortableSong[] = [
+      { songKey: 'fast', name: 'Fast', tag: '', key: '', bpm: '100' },
+      { songKey: 'slow', name: 'Slow', tag: '', key: '', bpm: '92' },
+    ];
+    expect(sortSongOrder(tempos, [{ field: 'bpm', direction: 'asc' }])).toEqual([
+      'slow',
+      'fast',
+    ]);
   });
 });

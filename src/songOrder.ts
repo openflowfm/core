@@ -53,6 +53,80 @@ export interface SceneOrdering {
   placements: SongPlacement[];
 }
 
+/** Song metadata the running-order sorter may compare. */
+export interface SortableSong {
+  songKey: string;
+  name: string;
+  tag: string;
+  key: string;
+  bpm: string;
+}
+
+export type SongSortField = 'name' | 'tag' | 'key' | 'bpm';
+export type SortDirection = 'asc' | 'desc';
+
+export interface SongSortCriterion {
+  field: SongSortField;
+  direction: SortDirection;
+}
+
+const WORDS = new Intl.Collator('en', { numeric: true, sensitivity: 'base' });
+
+function compareField(
+  a: SortableSong,
+  b: SortableSong,
+  field: SongSortField,
+  direction: SortDirection,
+): number {
+  const av = a[field].trim();
+  const bv = b[field].trim();
+
+  // Missing metadata always comes last. Reversing a sort changes the values,
+  // not whether unnamed/unknown songs interrupt every useful group.
+  if (av === '' || bv === '') return av === bv ? 0 : av === '' ? 1 : -1;
+
+  if (field === 'bpm') {
+    const an = Number(av);
+    const bn = Number(bv);
+    // A disagreement renders as `120 / 128`; compare that as text rather than
+    // pretending its first number is the song's answer.
+    if (Number.isFinite(an) && Number.isFinite(bn)) {
+      return direction === 'asc' ? an - bn : bn - an;
+    }
+  }
+  const words = WORDS.compare(av, bv);
+  return direction === 'asc' ? words : -words;
+}
+
+/**
+ * Sort songs lexicographically through an arbitrary hierarchy of metadata.
+ *
+ * Each criterion only breaks ties left by the one before it: Tag → Key → Name
+ * therefore forms tag groups, key groups inside them, then alphabetizes each
+ * leaf. Exact ties preserve the set's current order so applying a partial
+ * hierarchy never creates movement the rule did not ask for.
+ */
+export function sortSongOrder(
+  songs: readonly SortableSong[],
+  criteria: readonly SongSortCriterion[],
+): string[] {
+  return songs
+    .map((song, index) => ({ song, index }))
+    .sort((a, b) => {
+      for (const criterion of criteria) {
+        const compared = compareField(
+          a.song,
+          b.song,
+          criterion.field,
+          criterion.direction,
+        );
+        if (compared !== 0) return compared;
+      }
+      return a.index - b.index;
+    })
+    .map(({ song }) => song.songKey);
+}
+
 /**
  * Lay the set out to match `songOrder`.
  *

@@ -320,6 +320,13 @@ dropping it, and a song the set no longer carries is ignored. Every scene comes 
 once whatever the caller passes, because `planSceneReorder` refuses anything else and being
 refused is not a useful answer to give someone who just pressed Apply.
 
+The same module owns the pure hierarchical song sorter used to build that running order.
+Each level only breaks ties left by the level above it, so `Tag ↑ → Key ↑ → BPM ↓ →
+Name ↑` produces tag groups, key groups inside them, then orders equal-key songs by tempo
+and finally name. Name, tag and key compare naturally without case; BPM compares
+numerically. Missing metadata stays at the end in either direction, and exact ties retain
+their current set order so a partial hierarchy never invents a secondary rule.
+
 **`colorRules.ts`** — a color per song for the whole set at once. `useSongColor` paints
 what you selected with the swatch you pressed; this decides what every band should be:
 songs sharing a key sharing a color, or the palette walking with the tempo. Neither can be
