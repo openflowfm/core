@@ -4,6 +4,7 @@ import {
   formatTitle,
   isBpm,
   isKey,
+  isTag,
   parseTitle,
   patchTitle,
   titleOf,
@@ -15,6 +16,7 @@ describe('parseTitle', () => {
   it('splits the full convention', () => {
     expect(parseTitle('Nightfall 128 Bm')).toEqual({
       song: 'Nightfall',
+      tag: '',
       bpm: '128',
       key: 'Bm',
     });
@@ -23,39 +25,41 @@ describe('parseTitle', () => {
   it('keeps a multi-word song together', () => {
     expect(parseTitle('Glass Tunnel 124 F#m')).toEqual({
       song: 'Glass Tunnel',
+      tag: '',
       bpm: '124',
       key: 'F#m',
     });
   });
 
   it('reads a bpm with no key', () => {
-    expect(parseTitle('Nightfall 128')).toEqual({ song: 'Nightfall', bpm: '128', key: '' });
+    expect(parseTitle('Nightfall 128')).toEqual({ song: 'Nightfall', tag: '', bpm: '128', key: '' });
   });
 
   it('reads a key with no bpm', () => {
-    expect(parseTitle('Nightfall Bm')).toEqual({ song: 'Nightfall', bpm: '', key: 'Bm' });
+    expect(parseTitle('Nightfall Bm')).toEqual({ song: 'Nightfall', tag: '', bpm: '', key: 'Bm' });
   });
 
   it('reads bpm and key with no song', () => {
-    expect(parseTitle('128 Bm')).toEqual({ song: '', bpm: '128', key: 'Bm' });
+    expect(parseTitle('128 Bm')).toEqual({ song: '', tag: '', bpm: '128', key: 'Bm' });
   });
 
   it('leaves a title that follows no convention entirely in song', () => {
-    expect(parseTitle('Arp Jam 2')).toEqual({ song: 'Arp Jam 2', bpm: '', key: '' });
-    expect(parseTitle('Audio 3')).toEqual({ song: 'Audio 3', bpm: '', key: '' });
+    expect(parseTitle('Arp Jam 2')).toEqual({ song: 'Arp Jam 2', tag: '', bpm: '', key: '' });
+    expect(parseTitle('Audio 3')).toEqual({ song: 'Audio 3', tag: '', bpm: '', key: '' });
   });
 
   it('only takes bpm and key off the end, never from the middle', () => {
     expect(parseTitle('Nightfall Bm 128')).toEqual({
       song: 'Nightfall Bm',
+      tag: '',
       bpm: '128',
       key: '',
     });
   });
 
   it('handles an empty title', () => {
-    expect(parseTitle('')).toEqual({ song: '', bpm: '', key: '' });
-    expect(parseTitle('   ')).toEqual({ song: '', bpm: '', key: '' });
+    expect(parseTitle('')).toEqual({ song: '', tag: '', bpm: '', key: '' });
+    expect(parseTitle('   ')).toEqual({ song: '', tag: '', bpm: '', key: '' });
   });
 });
 
@@ -65,6 +69,10 @@ describe('parse/format round-trip', () => {
   // name nobody meant to restructure would quietly restructure it.
   const titles = [
     '@Bm NIGHTFALL',
+    '{COVER} @Bm NIGHTFALL',
+    '{ORIGINAL} GLASS TUNNEL',
+    '{JAM} NIGHTFALL',
+    '{LATE NIGHT} GLASS TUNNEL',
     '@F#m GLASS TUNNEL',
     '@Bm',
     'ARP JAM 2',
@@ -105,37 +113,50 @@ describe('parse/format round-trip', () => {
 });
 
 describe('formatTitle', () => {
-  it('writes key and song, never bpm', () => {
-    expect(formatTitle({ song: 'Nightfall', bpm: '', key: 'Bm' })).toBe('@Bm NIGHTFALL');
-    expect(formatTitle({ song: 'Nightfall', bpm: '128', key: '' })).toBe('NIGHTFALL');
-    expect(formatTitle({ song: 'Nightfall', bpm: '128', key: 'Bm' })).toBe('@Bm NIGHTFALL');
-    expect(formatTitle({ song: 'Nightfall', bpm: '', key: '' })).toBe('NIGHTFALL');
-    expect(formatTitle({ song: '', bpm: '', key: '' })).toBe('');
+  it('writes tag, key and song, never bpm', () => {
+    expect(formatTitle({ song: 'Nightfall', tag: 'COVER', bpm: '', key: 'Bm' })).toBe(
+      '{COVER} @Bm NIGHTFALL',
+    );
+    expect(formatTitle({ song: 'Nightfall', tag: '', bpm: '128', key: '' })).toBe('NIGHTFALL');
+    expect(formatTitle({ song: 'Nightfall', tag: '', bpm: '128', key: 'Bm' })).toBe('@Bm NIGHTFALL');
+    expect(formatTitle({ song: 'Nightfall', tag: '', bpm: '', key: '' })).toBe('NIGHTFALL');
+    expect(formatTitle({ song: '', tag: '', bpm: '', key: '' })).toBe('');
   });
 });
 
-describe('isBpm / isKey', () => {
+describe('isBpm / isKey / isTag', () => {
   it('accepts what the convention uses', () => {
     for (const s of ['92', '128', '174']) expect(isBpm(s), s).toBe(true);
     for (const s of ['Bm', 'F#m', 'Eb', 'A', 'G#']) expect(isKey(s), s).toBe(true);
+    for (const s of ['COVER', 'ORIGINAL', 'JAM', 'REMIX', 'late night']) {
+      expect(isTag(s), s).toBe(true);
+    }
   });
 
   it('rejects what would misparse', () => {
     for (const s of ['2', '1288', 'x', '']) expect(isBpm(s), s).toBe(false);
     // Lower-case is rejected so a flat `b` can't be confused with the note B.
     for (const s of ['bm', 'H', 'Bmaj', '']) expect(isKey(s), s).toBe(false);
+    for (const s of ['BAD_TAG', '{JAM}', 'JAM!', '']) expect(isTag(s), s).toBe(false);
   });
 });
 
 describe('patchTitle', () => {
-  const t = { song: 'Nightfall', bpm: '128', key: 'Bm' };
+  const t = { song: 'Nightfall', tag: 'COVER', bpm: '128', key: 'Bm' };
 
   it('leaves an omitted field alone', () => {
-    expect(patchTitle(t, { bpm: '92' })).toEqual({ song: 'Nightfall', bpm: '92', key: 'Bm' });
+    expect(patchTitle(t, { bpm: '92' })).toEqual({ song: 'Nightfall', tag: 'COVER', bpm: '92', key: 'Bm' });
   });
 
   it('clears a field set to empty — not the same as omitting it', () => {
-    expect(patchTitle(t, { key: '' })).toEqual({ song: 'Nightfall', bpm: '128', key: '' });
+    expect(patchTitle(t, { key: '' })).toEqual({ song: 'Nightfall', tag: 'COVER', bpm: '128', key: '' });
+
+    expect(patchTitle(t, { tag: 'original' })).toEqual({
+      song: 'Nightfall',
+      tag: 'ORIGINAL',
+      bpm: '128',
+      key: 'Bm',
+    });
   });
 
   it('is a no-op for an empty patch', () => {
@@ -147,29 +168,30 @@ describe('commonTitle', () => {
   it('reports the shared value per field and null where they differ', () => {
     expect(
       commonTitle([
-        { song: 'Nightfall', bpm: '128', key: 'Bm' },
-        { song: 'Daybreak', bpm: '128', key: 'Bm' },
+        { song: 'Nightfall', tag: 'COVER', bpm: '128', key: 'Bm' },
+        { song: 'Daybreak', tag: 'ORIGINAL', bpm: '128', key: 'Bm' },
       ]),
-    ).toEqual({ song: null, bpm: '128', key: 'Bm' });
+    ).toEqual({ song: null, tag: null, bpm: '128', key: 'Bm' });
   });
 
   it('agrees with itself for one title', () => {
-    expect(commonTitle([{ song: 'Nightfall', bpm: '128', key: 'Bm' }])).toEqual({
+    expect(commonTitle([{ song: 'Nightfall', tag: 'COVER', bpm: '128', key: 'Bm' }])).toEqual({
       song: 'Nightfall',
+      tag: 'COVER',
       bpm: '128',
       key: 'Bm',
     });
   });
 
   it('is all null for nothing selected', () => {
-    expect(commonTitle([])).toEqual({ song: null, bpm: null, key: null });
+    expect(commonTitle([])).toEqual({ song: null, tag: null, bpm: null, key: null });
   });
 
   it('treats a shared empty part as agreement, not as mixed', () => {
     expect(
       commonTitle([
-        { song: 'A', bpm: '', key: '' },
-        { song: 'B', bpm: '', key: '' },
+        { song: 'A', tag: '', bpm: '', key: '' },
+        { song: 'B', tag: '', bpm: '', key: '' },
       ]).bpm,
     ).toBe('');
   });
@@ -179,6 +201,7 @@ describe('titleOf', () => {
   it('reads the title out from under the role tag', () => {
     expect(titleOf('Nightfall 128 Bm [chorus]')).toEqual({
       song: 'Nightfall',
+      tag: '',
       bpm: '128',
       key: 'Bm',
     });
@@ -199,6 +222,23 @@ const LEGACY: SceneFields[] = [
 ];
 
 describe('titleOps', () => {
+  it('preserves a song tag while changing another title field', () => {
+    const tagged = [{ ...BEFORE[0]!, name: '[INTRO] {COVER} @Bm NIGHTFALL' }];
+    expect(titleOps(tagged, [0], { key: 'Am' })).toEqual([
+      { s: 0, name: '[INTRO] {COVER} @Am NIGHTFALL' },
+    ]);
+  });
+
+  it('adds and clears a song tag', () => {
+    expect(titleOps(BEFORE, [0], { tag: 'ORIGINAL' })).toEqual([
+      { s: 0, name: '[INTRO] {ORIGINAL} @Bm NIGHTFALL' },
+    ]);
+    const tagged = [{ ...BEFORE[0]!, name: '[INTRO] {COVER} @Bm NIGHTFALL' }];
+    expect(titleOps(tagged, [0], { tag: '' })).toEqual([
+      { s: 0, name: '[INTRO] @Bm NIGHTFALL' },
+    ]);
+  });
+
   it('rewrites the song and keeps each scene its own role', () => {
     expect(titleOps(BEFORE, [0, 1], { song: 'Moonrise' })).toEqual([
       { s: 0, name: '[INTRO] @Bm MOONRISE' },

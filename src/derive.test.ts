@@ -68,6 +68,7 @@ describe('derive', () => {
       name: 'Nightfall 128 Bm [intro]',
       fields: { song: 'Nightfall', bpm: '128', key: 'Bm', role: 'intro' },
       song: 'Nightfall',
+      tag: null,
       role: 'intro',
       tempo: null,
     });
@@ -84,6 +85,7 @@ describe('derive', () => {
     expect(d.songs[0]!.observed).toEqual({
       bpm: ['128'],
       key: ['Bm'],
+      tag: [],
       tempo: [],
       colorIndex: [-1],
     });
@@ -311,6 +313,31 @@ describe('disagreements', () => {
     ]);
   });
 
+  it('reports song tags that disagree across scenes', () => {
+    const current = compilePattern(DEFAULT_SCENE_PATTERN)!;
+    const d = derive(
+      [
+        scene(0, '[INTRO] {COVER} @Bm NIGHTFALL'),
+        scene(1, '[VERSE] {ORIGINAL} @Bm NIGHTFALL'),
+      ],
+      current,
+    );
+    expect(d.scenes[0]).toMatchObject({ song: 'NIGHTFALL', tag: 'COVER' });
+    expect(d.songs[0]!.observed.tag).toEqual(['COVER', 'ORIGINAL']);
+    expect(disagreements(d)).toContainEqual({
+      song: 'NIGHTFALL',
+      field: 'tag',
+      values: ['COVER', 'ORIGINAL'],
+    });
+  });
+
+  it('normalizes an open-vocabulary song tag to uppercase', () => {
+    const current = compilePattern(DEFAULT_SCENE_PATTERN)!;
+    const d = derive([scene(0, '[INTRO] {late night} NIGHTFALL')], current);
+    expect(d.scenes[0]!.tag).toBe('LATE NIGHT');
+    expect(d.songs[0]!.observed.tag).toEqual(['LATE NIGHT']);
+  });
+
   it('is empty when every song is internally consistent', () => {
     const d = derive(
       [scene(0, 'Nightfall 128 Bm [intro]'), scene(1, 'Nightfall 128 Bm [verse]')],
@@ -361,14 +388,14 @@ describe('reading more than one convention', () => {
     // match would mean never consulting the migration patterns at all.
     const d = derive(
       [
-        scene(0, '[INTRO] @Bm NIGHTFALL'),
+        scene(0, '[INTRO] {COVER} @Bm NIGHTFALL'),
         scene(1, '[BUILD] @128-Bm NIGHTFALL'),
         scene(2, 'Nightfall 128 Bm [verse]'),
       ],
       ALL,
     );
-    expect(d.scenes[0]).toMatchObject({ song: 'NIGHTFALL', role: 'INTRO' });
-    expect(d.scenes[0]!.fields).toMatchObject({ key: 'Bm' });
+    expect(d.scenes[0]).toMatchObject({ song: 'NIGHTFALL', tag: 'COVER', role: 'INTRO' });
+    expect(d.scenes[0]!.fields).toMatchObject({ tag: 'COVER', key: 'Bm' });
     expect(d.scenes[1]).toMatchObject({ song: 'NIGHTFALL', role: 'BUILD' });
     expect(d.scenes[1]!.fields).toMatchObject({ bpm: '128', key: 'Bm' });
     expect(d.scenes[2]).toMatchObject({ song: 'Nightfall', role: 'verse' });

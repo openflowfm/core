@@ -32,6 +32,8 @@
 // shape nobody anticipated fails loudly at definition time instead of quietly
 // at apply time.
 
+import { SONG_TAG_SHAPE } from './songTags.js';
+
 /** What one token's values may look like. */
 export interface TokenSpec {
   /**
@@ -54,14 +56,14 @@ export type TokenRegistry = Readonly<Record<string, TokenSpec>>;
 /**
  * The convention the app writes.
  *
- *   [CHORUS] @Bm NIGHTFALL
- *    └ role┘  │   └ song ┘
- *             └ key
+ *   [CHORUS] {COVER} @Bm NIGHTFALL
+ *    └ role┘   └ tag┘   │   └ song ┘
+ *                      └ key
  *
- * **Role first, then the key, then the name**, so a column of scene names
- * reads as structure rather than as a list of titles. Everything but `{song}` is
- * optional, so a set nobody has mapped yet still parses — every scene reads as a
- * song with no facts rather than as 848 unmapped rows.
+ * **Role first, then the song tag, key and name**, so a column of scene names
+ * reads as structure rather than as a list of titles. Everything but `{song}`
+ * is optional, so a set nobody has mapped yet still parses — every scene reads
+ * as a song with no facts rather than as 848 unmapped rows.
  *
  * `@` opens the key from the front. It can't appear in `ROLE_CHARS` and won't
  * start a song title, so the field is identifiable without a closing bracket.
@@ -72,7 +74,7 @@ export type TokenRegistry = Readonly<Record<string, TokenSpec>>;
  * make every scene using it silently roleless. `key` is recognised by *shape*,
  * so it needs no such protection. See `roles.ts`.
  */
-export const DEFAULT_SCENE_PATTERN = '([{role}])? (@{key?})? {song}';
+export const DEFAULT_SCENE_PATTERN = '([{role}])? ({{tag}})? (@{key?})? {song}';
 
 /** The immediately previous convention, still read while sets migrate. */
 export const BPM_SCENE_PATTERN = '([{role}])? (@{bpm?}-{key?})? {song}';
@@ -101,6 +103,12 @@ export const SCENE_TOKENS: TokenRegistry = {
   song: { shape: '.+', free: true, samples: ['Nightfall', 'Glass Tunnel'] },
   bpm: { shape: '\\d{2,3}', samples: ['128', '92'] },
   key: { shape: '[A-G][#b]?m?', samples: ['Bm', 'F#m'] },
+  tag: {
+    // Open vocabulary, safely bounded by literal braces in the scene name.
+    // The multi-word sample makes the round-trip probe hold that freedom down.
+    shape: SONG_TAG_SHAPE,
+    samples: ['COVER', 'LATE NIGHT JAM'],
+  },
   role: {
     // Matches ROLE_CHARS in roles.ts. Spaces are allowed, which is fine
     // because the tag is bracketed — the literals do the delimiting.

@@ -11,6 +11,9 @@ describe('render', () => {
     expect(render('{bpm} {key} {label} {role}', { bpm: 128, key: 'Bm', label: 'Arp', role: 'Jam 1' })).toBe(
       '128 Bm Arp Jam 1',
     );
+    expect(render('{tag} {track}', { tag: 'COVER', track: 'Guitar' })).toBe(
+      'COVER Guitar',
+    );
   });
 
   it('drops missing values and collapses the gap', () => {

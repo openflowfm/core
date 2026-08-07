@@ -13,7 +13,8 @@ src/groupSlot.ts     what a group track's clip slot shows at one scene
 src/gridRange.ts     block selection + active-cell movement over the columns
 src/ops.ts           building clip writes, reversing them, and applying them
 src/roles.ts         scene roles: the [role] tag, and scene writes
-src/sceneTitle.ts    the rest of the scene name — @{key} {SONG}
+src/songTags.ts      open song-tag syntax + editor suggestions
+src/sceneTitle.ts    the rest of the scene name — {TAG} @{key} {SONG}
 src/namePattern.ts   patterns that can be read back: format, parse, validate
 src/derive.ts        the set → the mapping, by reversing the pattern
 src/songRows.ts      songs → grid rows + song headers, and what folding hides
@@ -395,20 +396,28 @@ undoable and there's no counterpart to `countUnrevertableColors`.
 **`sceneTitle.ts`** — everything in a scene name *except* the role tag:
 
 ```
-[CHORUS] @Bm NIGHTFALL
- └ role┘  │   └ song ┘     roles.ts owns the tag
-          └ key
+[CHORUS] {COVER} @Bm NIGHTFALL
+ └ role┘   └ tag┘   │   └ song ┘     roles.ts owns the role
+                   └ key
 ```
 
-An optional key precedes the required song. `roles.ts` owns the tag, this owns what
-follows it, and `titleOps` composes them — it rewrites the title and puts the scene's
-own role back on, so renaming a song across eighteen scenes doesn't disturb the roles
-you assigned them.
+An optional song tag and key precede the required song. `roles.ts` owns the bracketed
+role, this owns what follows it, and `titleOps` composes them — it rewrites the title and
+puts the scene's own role back on, so renaming a song across eighteen scenes doesn't
+disturb the roles you assigned them.
 
-**Role first, key second, name last**, so a column of scene names reads as structure
-rather than as a list of titles. The cost is real and worth knowing: Live's own narrow
-scene column now truncates the *name* rather than the metadata. Our grid lifts the role
-into a chip, so it only bites in Live.
+**Role first, song tag and key next, name last**, so a column of scene names reads as
+structure rather than as a list of titles. The cost is real and worth knowing: Live's
+own narrow scene column now truncates the *name* rather than the metadata. Our grid lifts
+the role into a chip, so it only bites in Live.
+
+The song tag is a single optional, open-vocabulary classification written with literal
+braces. The editor currently suggests `COVER`, `ORIGINAL` and `JAM`, but `{REMIX}` or
+`{LATE NIGHT}` parse just as well. The pattern spelling is `({{tag}})?`: the inner
+`{tag}` is the pattern token and the outer braces are the characters written into the
+scene name. Those delimiters make custom tags reversible without matching a fixed list.
+The suggestions can later become device-state configuration alongside roles without
+changing the stored scene-name format.
 
 `@` opens the key from the front. It can't appear in `ROLE_CHARS` and won't start a
 title, so the key is identifiable without a closing delimiter. That asymmetry with the
@@ -431,7 +440,7 @@ two while a set is half-converted.
 
 `parseTitle` also still reads both older BPM-bearing forms: leading `@128-Bm` and the
 legacy trailing `128 Bm`. That's the migration path: a set named either way keeps
-showing its metadata, and any rename writes the current `[ROLE] @KEY SONG` convention.
+showing its metadata, and any rename writes the current `[ROLE] {TAG} @KEY SONG` convention.
 A no-op patch is therefore not a no-op rename on an old-convention scene.
 
 `TitlePatch` distinguishes **absent from empty**, and that distinction is the feature:
@@ -453,9 +462,9 @@ generalisation `sceneTitle.ts` is a hand-written special case of. A pattern comp
 into a formatter, a parser, and a verdict on whether it was safe to compile at all.
 
 **The parser is the point.** Writing names is easy; the scheme rests on being able to
-look at `[CHORUS] @Bm NIGHTFALL` six months later and recover which song and role it
-belongs to with nothing stored on the side. That's what lets the mapping live in the set,
-need no ids, and travel with the `.als`.
+look at `[CHORUS] {COVER} @Bm NIGHTFALL` six months later and recover which song, tag and
+role it belongs to with nothing stored on the side. That's what lets the mapping live in
+the set, need no ids, and travel with the `.als`.
 
 Two kinds of ambiguity, and **only one is fatal**:
 
@@ -541,7 +550,7 @@ the common and correct answer — this scene isn't named by the scheme yet — w
 half-read name would attach a scene to the wrong song.
 
 **`derive.ts`** — the other half of the trick: run every scene name back through the
-compiled pattern and recover which song and role it belongs to. Scenes have no stable id
+compiled pattern and recover which song, tag and role it belongs to. Scenes have no stable id
 in the LOM, and after this they don't need one, because **the name is the record**.
 
 A song is a **label, not a range** — whatever scenes carry its name, wherever they sit —

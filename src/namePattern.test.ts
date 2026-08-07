@@ -25,7 +25,7 @@ const compile = (p: string, r?: TokenRegistry) => {
 
 describe('accepting and rejecting patterns', () => {
   it('compiles the default scene pattern — App.tsx asserts this with a !', () => {
-    expect(DEFAULT_SCENE_PATTERN).toBe('([{role}])? (@{key?})? {song}');
+    expect(DEFAULT_SCENE_PATTERN).toBe('([{role}])? ({{tag}})? (@{key?})? {song}');
     expect(patternErrors(DEFAULT_SCENE_PATTERN)).toEqual([]);
     expect(compilePattern(DEFAULT_SCENE_PATTERN)).not.toBeNull();
   });
@@ -121,18 +121,19 @@ describe('accepting and rejecting patterns', () => {
   });
 });
 
-describe('the shipped convention: ([{role}])? (@{key?})? {song}', () => {
+describe('the shipped convention: ([{role}])? ({{tag}})? (@{key?})? {song}', () => {
   const c = compile(FULL);
 
   it('writes a full name', () => {
-    expect(c.format({ song: 'Nightfall', bpm: '128', key: 'Bm', role: 'chorus' })).toBe(
-      '[chorus] @Bm Nightfall',
+    expect(c.format({ song: 'Nightfall', tag: 'COVER', bpm: '128', key: 'Bm', role: 'chorus' })).toBe(
+      '[chorus] {COVER} @Bm Nightfall',
     );
   });
 
   it('reads a full name back', () => {
-    expect(c.parse('[chorus] @Bm Nightfall')).toEqual({
+    expect(c.parse('[chorus] {COVER} @Bm Nightfall')).toEqual({
       song: 'Nightfall',
+      tag: 'COVER',
       key: 'Bm',
       role: 'chorus',
     });
@@ -151,6 +152,24 @@ describe('the shipped convention: ([{role}])? (@{key?})? {song}', () => {
     expect(c.format({ song: 'Nightfall', bpm: '128', key: 'Bm' })).toBe(
       '@Bm Nightfall',
     );
+  });
+
+  it('reads and drops the whole literal-braced tag group', () => {
+    expect(c.format({ song: 'Nightfall', tag: 'ORIGINAL' })).toBe(
+      '{ORIGINAL} Nightfall',
+    );
+    expect(c.parse('{ORIGINAL} Nightfall')).toEqual({
+      song: 'Nightfall',
+      tag: 'ORIGINAL',
+    });
+    expect(c.format({ song: 'Nightfall' })).toBe('Nightfall');
+  });
+
+  it('accepts tags beyond the editor suggestions', () => {
+    expect(c.parse('{LATE NIGHT} Nightfall')).toEqual({
+      song: 'Nightfall',
+      tag: 'LATE NIGHT',
+    });
   });
 
   it('drops the whole @ group when it has nothing to say', () => {
@@ -176,6 +195,8 @@ describe('the shipped convention: ([{role}])? (@{key?})? {song}', () => {
 
   it('round-trips every shape the convention can produce', () => {
     const names = [
+      '[chorus] {COVER} @Bm Nightfall',
+      '{ORIGINAL} Glass Tunnel',
       '[chorus] @Bm Nightfall',
       '[post chorus] @F#m Glass Tunnel',
       '@Bm Nightfall',
@@ -372,6 +393,7 @@ describe('compilePattern', () => {
     // what makes it droppable.
     expect(compile(FULL).tokens).toEqual([
       { name: 'role', optional: true },
+      { name: 'tag', optional: true },
       { name: 'key', optional: true },
       { name: 'song', optional: false },
     ]);

@@ -1,17 +1,17 @@
 // The scene name convention, everything except the role tag.
 //
-//   [CHORUS] @Bm NIGHTFALL
-//    └ role┘  │   └ song ┘    (roles.ts owns the tag)
-//             └ key
+//   [CHORUS] {COVER} @Bm NIGHTFALL
+//    └ role┘   └ tag┘   │   └ song ┘    (roles.ts owns the role)
+//                      └ key
 //
 // `roles.ts` owns the bracketed tag at the front; this owns what follows it, and
 // the two compose — `titleOps` rewrites the title and puts the scene's own role
 // back on.
 //
-// **Role first, key second, name last**, so a column of scene names reads as
-// structure rather than as a list of titles. The cost is that Live's own narrow
-// scene column truncates the *name* rather than the metadata; our grid lifts the
-// role into a chip, so it only bites in Live.
+// **Role first, song tag and key next, name last**, so a column of scene names
+// reads as structure rather than as a list of titles. The cost is that Live's
+// own narrow scene column truncates the *name* rather than the metadata; our
+// grid lifts the role into a chip, so it only bites in Live.
 //
 // `@` opens the key from the front — it can't appear in a role and won't start
 // a title, so the field is identifiable without a closing delimiter. BPM is a
@@ -29,10 +29,11 @@
 // already in use rather than inventing a second one. If it ever gets renamed,
 // it should get renamed in all three places at once.
 //
-// Parsing is anchored at the *front* and never guesses in the middle: the facts
-// are read only from a leading `@` group, so "Arp Jam 2" keeps its whole title
-// rather than having the 2 read as a tempo, and "Em Dash" keeps its whole title
-// rather than having "Em" read as a key. The consequence worth relying on:
+// Parsing is anchored at the *front* and never guesses in the middle: the tag
+// is read only from literal braces and the facts only from a leading `@` group,
+// so "Arp Jam 2" keeps its whole title rather than having the 2 read as a tempo,
+// and "Em Dash" keeps its whole title rather than having "Em" read as a key.
+// The consequence worth relying on:
 // **parse and format round-trip** for anything already in the convention, and a
 // title this can't decompose comes back with only its case changed rather than
 // rearranged — which is what makes it safe to run over a name nobody meant to
@@ -49,9 +50,12 @@ import {
   type SceneFields,
   type SceneWriteOp,
 } from './roles.js';
+import { isSongTag, SONG_TAG_SHAPE } from './songTags.js';
 
 export interface SceneTitle {
   song: string;
+  /** Open song-level classification written inside literal braces. */
+  tag: string;
   /** Kept as a string, not a number: `''` is absent, and 0 is not a tempo. */
   bpm: string;
   key: string;
@@ -73,12 +77,18 @@ const BPM_RE = /^\d{2,3}$/;
 /** `A`–`G`, optional `#`/`b`, optional minor `m`: `Bm`, `F#m`, `Eb`, `A`. */
 const KEY_RE = /^[A-G][#b]?m?$/;
 
+const TAG_RE = new RegExp(`^\\{(${SONG_TAG_SHAPE})\\}(?=\\s|$)`);
+
 export function isBpm(s: string): boolean {
   return BPM_RE.test(s.trim());
 }
 
 export function isKey(s: string): boolean {
   return KEY_RE.test(s.trim());
+}
+
+export function isTag(s: string): boolean {
+  return isSongTag(s);
 }
 
 /**
@@ -106,30 +116,36 @@ function takeTrailingFacts(words: string[]): { bpm: string; key: string } {
 }
 
 /**
- * Split a title into its song and key, plus any BPM carried by an older name.
+ * Split a title into its song tag, song and key, plus any BPM carried by an
+ * older name.
  *
- * Reads a leading `@` group first. Failing that it falls back to the **old**
- * convention's trailing `128 Bm`, so a set named the previous way still shows
- * its metadata while it migrates. Formatting deliberately leaves the BPM out.
+ * Reads a leading literal-braced tag, then an `@` group. Failing that it falls
+ * back to the **old** convention's trailing `128 Bm`, so a set named the
+ * previous way still shows its metadata while it migrates. Formatting
+ * deliberately leaves the BPM out.
  *
  * Anything it doesn't recognise stays in `song`, so a title that never followed
  * either convention survives.
  */
 export function parseTitle(title: string): SceneTitle {
-  const trimmed = title.trim();
+  let rest = title.trim();
+  const tagged = TAG_RE.exec(rest);
+  const tag = (tagged?.[1] ?? '').toUpperCase();
+  if (tagged) rest = rest.slice(tagged[0].length).trim();
 
-  const facts = FACTS_RE.exec(trimmed);
+  const facts = FACTS_RE.exec(rest);
   if (facts && (facts[1] !== undefined || facts[2] !== undefined)) {
     return {
-      song: trimmed.slice(facts[0].length).trim(),
+      song: rest.slice(facts[0].length).trim(),
+      tag,
       bpm: facts[1] ?? '',
       key: facts[2] ?? '',
     };
   }
 
-  const words = trimmed.split(/\s+/).filter((w) => w !== '');
+  const words = rest.split(/\s+/).filter((w) => w !== '');
   const { bpm, key } = takeTrailingFacts(words);
-  return { song: words.join(' '), bpm, key };
+  return { song: words.join(' '), tag, bpm, key };
 }
 
 /**
@@ -141,7 +157,8 @@ export function parseTitle(title: string): SceneTitle {
  */
 export function formatTitle(t: SceneTitle): string {
   const key = t.key.trim();
-  return [key ? `@${key}` : '', t.song.trim().toUpperCase()]
+  const tag = t.tag.trim().toUpperCase();
+  return [tag ? `{${tag}}` : '', key ? `@${key}` : '', t.song.trim().toUpperCase()]
     .filter((p) => p !== '')
     .join(' ');
 }
@@ -150,6 +167,7 @@ export function formatTitle(t: SceneTitle): string {
 export function patchTitle(t: SceneTitle, patch: TitlePatch): SceneTitle {
   return {
     song: patch.song === undefined ? t.song : patch.song.trim(),
+    tag: patch.tag === undefined ? t.tag : patch.tag.trim().toUpperCase(),
     bpm: patch.bpm === undefined ? t.bpm : patch.bpm.trim(),
     key: patch.key === undefined ? t.key : patch.key.trim(),
   };
@@ -164,6 +182,7 @@ export function patchTitle(t: SceneTitle, patch: TitlePatch): SceneTitle {
  */
 export function commonTitle(titles: readonly SceneTitle[]): {
   song: string | null;
+  tag: string | null;
   bpm: string | null;
   key: string | null;
 } {
@@ -172,7 +191,12 @@ export function commonTitle(titles: readonly SceneTitle[]): {
     const first = pick(titles[0]!);
     return titles.every((t) => pick(t) === first) ? first : null;
   };
-  return { song: agree((t) => t.song), bpm: agree((t) => t.bpm), key: agree((t) => t.key) };
+  return {
+    song: agree((t) => t.song),
+    tag: agree((t) => t.tag),
+    bpm: agree((t) => t.bpm),
+    key: agree((t) => t.key),
+  };
 }
 
 /** The title part of a scene's name — its own name with the role tag taken off. */

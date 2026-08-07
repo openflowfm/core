@@ -59,7 +59,34 @@ describe('headers', () => {
     expect(songRows(SET).headers.get(0)).toMatchObject({
       bpm: '128',
       key: 'Bm',
+      tag: '',
       tempo: '',
+      clash: false,
+    });
+  });
+
+  it('carries a song tag into every block header', () => {
+    const d = derive(
+      [
+        scene(0, '[A] {COVER} @Bm NIGHTFALL'),
+        scene(1, '[B] {COVER} @Bm NIGHTFALL'),
+      ],
+      PATTERN,
+    );
+    expect(songRows(d).headers.get(0)).toMatchObject({ tag: 'COVER', tagClash: false });
+  });
+
+  it('marks a tag disagreement without marking the musical facts', () => {
+    const d = derive(
+      [
+        scene(0, '[A] {COVER} @Bm NIGHTFALL'),
+        scene(1, '[B] {ORIGINAL} @Bm NIGHTFALL'),
+      ],
+      PATTERN,
+    );
+    expect(songRows(d).headers.get(0)).toMatchObject({
+      tag: 'COVER / ORIGINAL',
+      tagClash: true,
       clash: false,
     });
   });

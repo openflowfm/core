@@ -12,6 +12,7 @@ export const TOKENS = [
   'name',
   'role',
   'song',
+  'tag',
   'bpm',
   'key',
   'label',
