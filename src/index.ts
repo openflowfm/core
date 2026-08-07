@@ -9,3 +9,4 @@ export * from './songRows.js';
 export * from './sceneMove.js';
 export * from './songOrder.js';
 export * from './colorRules.js';
+export * from './livePalette.js';

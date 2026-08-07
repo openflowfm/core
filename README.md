@@ -5,6 +5,7 @@ meaningful unit-test coverage.
 
 ```
 src/color.ts         palette RGB → hex, luminance, brightness, ink, legibility
+src/livePalette.ts   the checked-in 70-color Live table, in color_index order
 src/lomAtoms.ts      parsing for the atom shapes the LOM returns
 src/pattern.ts       token template evaluation + song-title parsing
 src/trackColumns.ts  Live's flat track list → grid columns + group color bands
@@ -23,7 +24,7 @@ src/colorRules.ts    a color per song, from a rule over the whole set
 src/index.ts         barrel
 ```
 
-Run with `npm test` from the repo root. 426 tests.
+Run with `npm test` from the repo root. 428 tests.
 
 ## The one rule
 
