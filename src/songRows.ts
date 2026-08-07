@@ -186,6 +186,12 @@ export interface TrackShape {
   untagged: number;
   /** Scenes of the block it holds a clip in, tagged or not. */
   scenes: number;
+  /**
+   * One entry per scene in the block, in scene order. `null` is an empty clip
+   * slot; an occupied slot carries its role, which is itself `null` when that
+   * scene has not been tagged yet.
+   */
+  slots: ({ role: string | null } | null)[];
 }
 
 /** `roles`, still carrying the scene each role was first seen on. */
@@ -237,9 +243,11 @@ export function blockTrackRoles(
     roles: Map<string, Tallying>;
     untagged: number;
     scenes: number;
+    slots: ({ role: string | null } | null)[];
   }
   const building = new Map<number, Map<number, Building>>();
   for (const b of blocks) building.set(b.from, new Map());
+  const blockLengths = new Map(blocks.map((b) => [b.from, b.to - b.from + 1]));
 
   for (const c of clips) {
     const from = owner.get(c.s);
@@ -247,11 +255,17 @@ export function blockTrackRoles(
     const byTrack = building.get(from)!;
     let shape = byTrack.get(c.t);
     if (!shape) {
-      shape = { roles: new Map(), untagged: 0, scenes: 0 };
+      shape = {
+        roles: new Map(),
+        untagged: 0,
+        scenes: 0,
+        slots: Array.from({ length: blockLengths.get(from)! }, () => null),
+      };
       byTrack.set(c.t, shape);
     }
     shape.scenes++;
     const role = roleAt.get(c.s);
+    shape.slots[c.s - from] = { role: role ?? null };
     if (role === undefined) {
       shape.untagged++;
       continue;
@@ -281,7 +295,7 @@ export function blockTrackRoles(
 
 function finish(
   roles: Map<string, Tallying>,
-  of: { untagged: number; scenes: number },
+  of: { untagged: number; scenes: number; slots: ({ role: string | null } | null)[] },
 ): TrackShape {
   return {
     roles: [...roles.values()]
@@ -289,6 +303,7 @@ function finish(
       .map(({ name, scenes }) => ({ name, scenes })),
     untagged: of.untagged,
     scenes: of.scenes,
+    slots: of.slots,
   };
 }
 
@@ -302,15 +317,23 @@ function finish(
  * which is track order rather than strictly scene order. Exact enough for a
  * column standing in for several tracks, and the alternative is carrying a
  * scene index into the public type for a case where nothing reads the ordering
- * that closely.
+ * that closely. Slots are merged positionally: if any member track has a clip
+ * in a scene, the group has a painted slice there. Every member necessarily
+ * gets the same role because roles are properties of scenes, not tracks.
  */
 export function mergeShapes(shapes: Iterable<TrackShape>): TrackShape {
   const roles = new Map<string, RoleTally>();
   let untagged = 0;
   let scenes = 0;
+  const slots: ({ role: string | null } | null)[] = [];
   for (const shape of shapes) {
     untagged += shape.untagged;
     scenes += shape.scenes;
+    while (slots.length < shape.slots.length) slots.push(null);
+    for (let i = 0; i < shape.slots.length; i++) {
+      const slot = shape.slots[i];
+      if (slots[i] === null && slot !== null) slots[i] = { ...slot };
+    }
     for (const r of shape.roles) {
       const k = roleKey(r.name);
       const seen = roles.get(k);
@@ -318,7 +341,7 @@ export function mergeShapes(shapes: Iterable<TrackShape>): TrackShape {
       else roles.set(k, { name: r.name, scenes: r.scenes });
     }
   }
-  return { roles: [...roles.values()], untagged, scenes };
+  return { roles: [...roles.values()], untagged, scenes, slots };
 }
 
 /** Every song key in the set — what "collapse all" needs. */

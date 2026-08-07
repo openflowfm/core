@@ -231,6 +231,12 @@ describe('blockTrackRoles', () => {
       { name: 'CHORUS', scenes: 1 },
     ]);
     expect(shapes.get(0)!.get(4)!.roles).toEqual([{ name: 'VERSE', scenes: 1 }]);
+    expect(shapes.get(0)!.get(0)!.slots).toEqual([
+      { role: 'INTRO' },
+      null,
+      { role: 'CHORUS' },
+    ]);
+    expect(shapes.get(0)!.get(4)!.slots).toEqual([null, { role: 'VERSE' }, null]);
   });
 
   it('orders roles by scene, not by the order clips arrived in', () => {
@@ -300,6 +306,7 @@ describe('blockTrackRoles', () => {
       roles: [{ name: 'VERSE', scenes: 1 }],
       untagged: 1,
       scenes: 2,
+      slots: [{ role: null }, { role: 'VERSE' }, null],
     });
   });
 
@@ -358,7 +365,12 @@ describe('blockTrackRoles', () => {
 describe('mergeShapes', () => {
   it('sums a folded group of tracks into one shape', () => {
     const merged = mergeShapes([
-      { roles: [{ name: 'CHORUS', scenes: 2 }], untagged: 1, scenes: 3 },
+      {
+        roles: [{ name: 'CHORUS', scenes: 2 }],
+        untagged: 1,
+        scenes: 3,
+        slots: [{ role: 'CHORUS' }, null, { role: null }, null, null],
+      },
       {
         roles: [
           { name: 'chorus', scenes: 1 },
@@ -366,6 +378,13 @@ describe('mergeShapes', () => {
         ],
         untagged: 0,
         scenes: 5,
+        slots: [
+          { role: 'chorus' },
+          { role: 'VERSE' },
+          null,
+          { role: 'VERSE' },
+          { role: 'VERSE' },
+        ],
       },
     ]);
     expect(merged).toEqual({
@@ -375,19 +394,32 @@ describe('mergeShapes', () => {
       ],
       untagged: 1,
       scenes: 8,
+      slots: [
+        { role: 'CHORUS' },
+        { role: 'VERSE' },
+        { role: null },
+        { role: 'VERSE' },
+        { role: 'VERSE' },
+      ],
     });
   });
 
   it('does not mutate the shapes it was given', () => {
     // They're the memoized map's own objects — a group column rendering twice
     // would otherwise double every count it shows.
-    const one = { roles: [{ name: 'CHORUS', scenes: 2 }], untagged: 0, scenes: 2 };
+    const one = {
+      roles: [{ name: 'CHORUS', scenes: 2 }],
+      untagged: 0,
+      scenes: 2,
+      slots: [{ role: 'CHORUS' }, { role: 'CHORUS' }],
+    };
     mergeShapes([one, one]);
     expect(one.roles[0]!.scenes).toBe(2);
+    expect(one.slots).toEqual([{ role: 'CHORUS' }, { role: 'CHORUS' }]);
   });
 
   it('is an empty shape for a group with nothing in it', () => {
-    expect(mergeShapes([])).toEqual({ roles: [], untagged: 0, scenes: 0 });
+    expect(mergeShapes([])).toEqual({ roles: [], untagged: 0, scenes: 0, slots: [] });
   });
 });
 
