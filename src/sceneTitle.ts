@@ -1,17 +1,16 @@
 // The scene name convention, everything except the role tag.
 //
-//   [CHORUS] {COVER} @Bm NIGHTFALL
-//    └ role┘   └ tag┘   │   └ song ┘    (roles.ts owns the role)
-//                      └ key
+//   [CHORUS] @Bm NIGHTFALL {COVER}
+//    └ role┘  │   └ song ┘  └ tag┘    (roles.ts owns the role)
+//             └ key
 //
 // `roles.ts` owns the bracketed tag at the front; this owns what follows it, and
 // the two compose — `titleOps` rewrites the title and puts the scene's own role
 // back on.
 //
-// **Role first, song tag and key next, name last**, so a column of scene names
-// reads as structure rather than as a list of titles. The cost is that Live's
-// own narrow scene column truncates the *name* rather than the metadata; our
-// grid lifts the role into a chip, so it only bites in Live.
+// **Role first, key and name next, song tag last.** Live's narrow scene column
+// keeps the performance metadata in view and truncates the app-only catalog
+// tag first. Our grid parses each field into its own dedicated presentation.
 //
 // `@` opens the key from the front — it can't appear in a role and won't start
 // a title, so the field is identifiable without a closing delimiter. BPM is a
@@ -29,8 +28,8 @@
 // already in use rather than inventing a second one. If it ever gets renamed,
 // it should get renamed in all three places at once.
 //
-// Parsing is anchored at the *front* and never guesses in the middle: the tag
-// is read only from literal braces and the facts only from a leading `@` group,
+// Parsing never guesses in the middle: the tag is read only from literal braces
+// at the tail and the facts only from a leading `@` group,
 // so "Arp Jam 2" keeps its whole title rather than having the 2 read as a tempo,
 // and "Em Dash" keeps its whole title rather than having "Em" read as a key.
 // The consequence worth relying on:
@@ -77,7 +76,9 @@ const BPM_RE = /^\d{2,3}$/;
 /** `A`–`G`, optional `#`/`b`, optional minor `m`: `Bm`, `F#m`, `Eb`, `A`. */
 const KEY_RE = /^[A-G][#b]?m?$/;
 
-const TAG_RE = new RegExp(`^\\{(${SONG_TAG_SHAPE})\\}(?=\\s|$)`);
+const TRAILING_TAG_RE = new RegExp(`\\s*\\{(${SONG_TAG_SHAPE})\\}$`);
+/** Compatibility for scenes written during the leading-tag iteration. */
+const LEADING_TAG_RE = new RegExp(`^\\{(${SONG_TAG_SHAPE})\\}(?=\\s|$)`);
 
 export function isBpm(s: string): boolean {
   return BPM_RE.test(s.trim());
@@ -119,19 +120,24 @@ function takeTrailingFacts(words: string[]): { bpm: string; key: string } {
  * Split a title into its song tag, song and key, plus any BPM carried by an
  * older name.
  *
- * Reads a leading literal-braced tag, then an `@` group. Failing that it falls
+ * Reads a literal-braced tag from the tail, then an `@` group from the front.
+ * It also accepts the short-lived leading-tag order. Failing those it falls
  * back to the **old** convention's trailing `128 Bm`, so a set named the
- * previous way still shows its metadata while it migrates. Formatting
- * deliberately leaves the BPM out.
+ * previous way still shows its metadata while it migrates. Formatting leaves
+ * the BPM out and always writes the tag last.
  *
  * Anything it doesn't recognise stays in `song`, so a title that never followed
  * either convention survives.
  */
 export function parseTitle(title: string): SceneTitle {
   let rest = title.trim();
-  const tagged = TAG_RE.exec(rest);
+  let tagged = TRAILING_TAG_RE.exec(rest);
+  if (tagged) rest = rest.slice(0, tagged.index).trim();
+  else {
+    tagged = LEADING_TAG_RE.exec(rest);
+    if (tagged) rest = rest.slice(tagged[0].length).trim();
+  }
   const tag = (tagged?.[1] ?? '').toUpperCase();
-  if (tagged) rest = rest.slice(tagged[0].length).trim();
 
   const facts = FACTS_RE.exec(rest);
   if (facts && (facts[1] !== undefined || facts[2] !== undefined)) {
@@ -158,7 +164,7 @@ export function parseTitle(title: string): SceneTitle {
 export function formatTitle(t: SceneTitle): string {
   const key = t.key.trim();
   const tag = t.tag.trim().toUpperCase();
-  return [tag ? `{${tag}}` : '', key ? `@${key}` : '', t.song.trim().toUpperCase()]
+  return [key ? `@${key}` : '', t.song.trim().toUpperCase(), tag ? `{${tag}}` : '']
     .filter((p) => p !== '')
     .join(' ');
 }

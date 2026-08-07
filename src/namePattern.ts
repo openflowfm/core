@@ -56,14 +56,15 @@ export type TokenRegistry = Readonly<Record<string, TokenSpec>>;
 /**
  * The convention the app writes.
  *
- *   [CHORUS] {COVER} @Bm NIGHTFALL
- *    └ role┘   └ tag┘   │   └ song ┘
- *                      └ key
+ *   [CHORUS] @Bm NIGHTFALL {COVER}
+ *    └ role┘  │   └ song ┘  └ tag┘
+ *             └ key
  *
- * **Role first, then the song tag, key and name**, so a column of scene names
- * reads as structure rather than as a list of titles. Everything but `{song}`
- * is optional, so a set nobody has mapped yet still parses — every scene reads
- * as a song with no facts rather than as 848 unmapped rows.
+ * **Role first, then key and name, with the song tag last.** Live's narrow
+ * scene column therefore keeps the performance metadata in view and lets the
+ * app-only catalog tag truncate first. Everything but `{song}` is optional, so
+ * a set nobody has mapped yet still parses — every scene reads as a song with
+ * no facts rather than as 848 unmapped rows.
  *
  * `@` opens the key from the front. It can't appear in `ROLE_CHARS` and won't
  * start a song title, so the field is identifiable without a closing bracket.
@@ -74,9 +75,12 @@ export type TokenRegistry = Readonly<Record<string, TokenSpec>>;
  * make every scene using it silently roleless. `key` is recognised by *shape*,
  * so it needs no such protection. See `roles.ts`.
  */
-export const DEFAULT_SCENE_PATTERN = '([{role}])? ({{tag}})? (@{key?})? {song}';
+export const DEFAULT_SCENE_PATTERN = '([{role}])? (@{key?})? {song} ({{tag}})?';
 
-/** The immediately previous convention, still read while sets migrate. */
+/** The short-lived leading-tag convention, read so in-progress sets migrate. */
+export const LEADING_TAG_SCENE_PATTERN = '([{role}])? ({{tag}})? (@{key?})? {song}';
+
+/** The earlier BPM-in-name convention, still read while sets migrate. */
 export const BPM_SCENE_PATTERN = '([{role}])? (@{bpm?}-{key?})? {song}';
 
 /**

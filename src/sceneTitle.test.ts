@@ -69,10 +69,10 @@ describe('parse/format round-trip', () => {
   // name nobody meant to restructure would quietly restructure it.
   const titles = [
     '@Bm NIGHTFALL',
-    '{COVER} @Bm NIGHTFALL',
-    '{ORIGINAL} GLASS TUNNEL',
-    '{JAM} NIGHTFALL',
-    '{LATE NIGHT} GLASS TUNNEL',
+    '@Bm NIGHTFALL {COVER}',
+    'GLASS TUNNEL {ORIGINAL}',
+    'NIGHTFALL {JAM}',
+    'GLASS TUNNEL {LATE NIGHT}',
     '@F#m GLASS TUNNEL',
     '@Bm',
     'ARP JAM 2',
@@ -96,6 +96,8 @@ describe('parse/format round-trip', () => {
     ['Glass Tunnel 124 F#m', '@F#m GLASS TUNNEL'],
     ['Nightfall 128', 'NIGHTFALL'],
     ['Nightfall Bm', '@Bm NIGHTFALL'],
+    ['{COVER} @Bm NIGHTFALL', '@Bm NIGHTFALL {COVER}'],
+    ['{ORIGINAL} GLASS TUNNEL', 'GLASS TUNNEL {ORIGINAL}'],
   ];
   for (const [old, next] of converts) {
     it(`converts ${JSON.stringify(old)} to ${JSON.stringify(next)}`, () => {
@@ -115,7 +117,7 @@ describe('parse/format round-trip', () => {
 describe('formatTitle', () => {
   it('writes tag, key and song, never bpm', () => {
     expect(formatTitle({ song: 'Nightfall', tag: 'COVER', bpm: '', key: 'Bm' })).toBe(
-      '{COVER} @Bm NIGHTFALL',
+      '@Bm NIGHTFALL {COVER}',
     );
     expect(formatTitle({ song: 'Nightfall', tag: '', bpm: '128', key: '' })).toBe('NIGHTFALL');
     expect(formatTitle({ song: 'Nightfall', tag: '', bpm: '128', key: 'Bm' })).toBe('@Bm NIGHTFALL');
@@ -225,13 +227,13 @@ describe('titleOps', () => {
   it('preserves a song tag while changing another title field', () => {
     const tagged = [{ ...BEFORE[0]!, name: '[INTRO] {COVER} @Bm NIGHTFALL' }];
     expect(titleOps(tagged, [0], { key: 'Am' })).toEqual([
-      { s: 0, name: '[INTRO] {COVER} @Am NIGHTFALL' },
+      { s: 0, name: '[INTRO] @Am NIGHTFALL {COVER}' },
     ]);
   });
 
   it('adds and clears a song tag', () => {
     expect(titleOps(BEFORE, [0], { tag: 'ORIGINAL' })).toEqual([
-      { s: 0, name: '[INTRO] {ORIGINAL} @Bm NIGHTFALL' },
+      { s: 0, name: '[INTRO] @Bm NIGHTFALL {ORIGINAL}' },
     ]);
     const tagged = [{ ...BEFORE[0]!, name: '[INTRO] {COVER} @Bm NIGHTFALL' }];
     expect(titleOps(tagged, [0], { tag: '' })).toEqual([

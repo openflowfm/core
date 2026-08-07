@@ -14,18 +14,19 @@ src/gridRange.ts     block selection + active-cell movement over the columns
 src/ops.ts           building clip writes, reversing them, and applying them
 src/roles.ts         scene roles: the [role] tag, and scene writes
 src/songTags.ts      open song-tag syntax + editor suggestions
-src/sceneTitle.ts    the rest of the scene name — {TAG} @{key} {SONG}
+src/sceneTitle.ts    the rest of the scene name — @{key} {SONG} {TAG}
 src/namePattern.ts   patterns that can be read back: format, parse, validate
 src/derive.ts        the set → the mapping, by reversing the pattern
 src/songRows.ts      songs → grid rows + song headers, and what folding hides
 src/sceneMove.ts     reordering scenes: the index arithmetic, so it's testable
 src/clipMove.ts      dragging clips: the copy order, so nothing is clobbered
+src/snapshotDelta.ts merging a partial re-read of the set back in
 src/songOrder.ts     a running order of songs → the order the scenes go in
 src/colorRules.ts    a color per song, from a rule over the whole set
 src/index.ts         barrel
 ```
 
-Run with `npm test` from the repo root. 428 tests.
+Run with `npm test` from the repo root. 457 tests.
 
 ## The one rule
 
@@ -121,6 +122,31 @@ out of Live — the LOM exposes them per slot, which is trackCount × sceneCount
 something already in hand. Member order is load-bearing: it decides which clip is
 "first" and therefore what color the slot takes. `-1` means the group has nothing there
 and is not a color; black is `0` and is.
+
+**`snapshotDelta.ts`** — merging a partial re-read of the set back into the snapshot in
+hand. The bridge follows edits made in Live by watching the Session cursor and re-reading
+only the tracks it touches (`bridge/README.md`, *Following Live*); this is the half that
+has to be right for that to be worth doing.
+
+**Scope-then-replace, never upsert by `(t, s)`** — and that distinction is the entire
+reason this is a function in `core/` rather than three inline lines in a hook.
+
+An upsert carries over a clip that is no longer there: a deleted clip has no entry in the
+incoming payload, so nothing overwrites it and the stale copy survives. **A clip moved out
+of a slot is a deletion at the source**, so a merge that can't represent deletion doesn't
+merely miss the change — it draws the clip in two places at once, which is the exact
+failure the re-read exists to prevent.
+
+So the scope is authoritative in both directions. Whatever the payload says about those
+tracks is the complete truth about them, *including saying nothing at all*: an emptied
+track is a scope entry with no clips, not a missing entry. Clips arriving from outside the
+declared scope are dropped rather than trusted, because nothing would ever replace them —
+a later delta only rewrites its own scope, so an out-of-scope clip is uncorrectable once
+admitted.
+
+`canApplyDelta` is the other half: revisions are a monotonic counter owned by `lom.ts`, and
+a delta may only be applied to the exact revision it was computed against. A mismatch is a
+missed message rather than an error, so the answer is a full walk, not a retry.
 
 **`clipMove.ts`** — a clip drag is a **rigid translation**: every clip picked up moves by
 the same `(dt, ds)`, and that is what makes the ordering problem solvable. Live has no
@@ -396,20 +422,19 @@ undoable and there's no counterpart to `countUnrevertableColors`.
 **`sceneTitle.ts`** — everything in a scene name *except* the role tag:
 
 ```
-[CHORUS] {COVER} @Bm NIGHTFALL
- └ role┘   └ tag┘   │   └ song ┘     roles.ts owns the role
-                   └ key
+[CHORUS] @Bm NIGHTFALL {COVER}
+ └ role┘  │   └ song ┘  └ tag┘       roles.ts owns the role
+          └ key
 ```
 
-An optional song tag and key precede the required song. `roles.ts` owns the bracketed
-role, this owns what follows it, and `titleOps` composes them — it rewrites the title and
+An optional key precedes the required song, and an optional song tag follows it.
+`roles.ts` owns the bracketed role, this owns what follows it, and `titleOps` composes them — it rewrites the title and
 puts the scene's own role back on, so renaming a song across eighteen scenes doesn't
 disturb the roles you assigned them.
 
-**Role first, song tag and key next, name last**, so a column of scene names reads as
-structure rather than as a list of titles. The cost is real and worth knowing: Live's
-own narrow scene column now truncates the *name* rather than the metadata. Our grid lifts
-the role into a chip, so it only bites in Live.
+**Role and key first, name next, song tag last.** Live's narrow scene column keeps the
+performance metadata visible and truncates the app-only catalog tag first. Our grid
+lifts every field into its own presentation, so the tag remains easy to scan there.
 
 The song tag is a single optional, open-vocabulary classification written with literal
 braces. The editor currently suggests `COVER`, `ORIGINAL` and `JAM`, but `{REMIX}` or
@@ -425,8 +450,8 @@ role's brackets is deliberate — a role is recognised by *vocabulary* and so mu
 visible when its name is unknown; a key is recognised by *shape* and can't fail the
 same way. BPM is stored independently on Live's `Scene.tempo` property.
 
-**Parsing is anchored at the front and never guesses in the middle.** The facts are read
-only from a leading `@` group, so `Arp Jam 2` keeps its whole title rather than having the
+**Parsing is anchored at both ends and never guesses in the middle.** The key is read
+only from a leading `@` group and the tag only from trailing literal braces, so `Arp Jam 2` keeps its whole title rather than having the
 `2` read as a tempo, and `Em Dash` keeps its whole title rather than having `Em` read as a
 key. The property worth relying on: **parse and format round-trip**, modulo case. A title
 this can't decompose comes back with only its capitalisation changed rather than
@@ -438,9 +463,10 @@ so `NIGHTFALL` and `Nightfall` are one song and the uppercase is presentation ra
 identity — which is exactly what stops the convention change from splitting the library in
 two while a set is half-converted.
 
-`parseTitle` also still reads both older BPM-bearing forms: leading `@128-Bm` and the
-legacy trailing `128 Bm`. That's the migration path: a set named either way keeps
-showing its metadata, and any rename writes the current `[ROLE] {TAG} @KEY SONG` convention.
+`parseTitle` also still reads the short-lived leading-tag form and both older BPM-bearing
+forms: leading `@128-Bm` and legacy trailing `128 Bm`. That's the migration path: a set
+named any earlier way keeps showing its metadata, and any rename writes the current
+`[ROLE] @KEY SONG {TAG}` convention.
 A no-op patch is therefore not a no-op rename on an old-convention scene.
 
 `TitlePatch` distinguishes **absent from empty**, and that distinction is the feature:
@@ -462,7 +488,7 @@ generalisation `sceneTitle.ts` is a hand-written special case of. A pattern comp
 into a formatter, a parser, and a verdict on whether it was safe to compile at all.
 
 **The parser is the point.** Writing names is easy; the scheme rests on being able to
-look at `[CHORUS] {COVER} @Bm NIGHTFALL` six months later and recover which song, tag and
+look at `[CHORUS] @Bm NIGHTFALL {COVER}` six months later and recover which song, tag and
 role it belongs to with nothing stored on the side. That's what lets the mapping live in
 the set, need no ids, and travel with the `.als`.
 

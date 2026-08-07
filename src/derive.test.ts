@@ -14,6 +14,7 @@ import {
   BPM_SCENE_PATTERN,
   compilePattern,
   DEFAULT_SCENE_PATTERN,
+  LEADING_TAG_SCENE_PATTERN,
   LEGACY_SCENE_PATTERN,
 } from './namePattern.js';
 
@@ -317,8 +318,8 @@ describe('disagreements', () => {
     const current = compilePattern(DEFAULT_SCENE_PATTERN)!;
     const d = derive(
       [
-        scene(0, '[INTRO] {COVER} @Bm NIGHTFALL'),
-        scene(1, '[VERSE] {ORIGINAL} @Bm NIGHTFALL'),
+        scene(0, '[INTRO] @Bm NIGHTFALL {COVER}'),
+        scene(1, '[VERSE] @Bm NIGHTFALL {ORIGINAL}'),
       ],
       current,
     );
@@ -333,7 +334,7 @@ describe('disagreements', () => {
 
   it('normalizes an open-vocabulary song tag to uppercase', () => {
     const current = compilePattern(DEFAULT_SCENE_PATTERN)!;
-    const d = derive([scene(0, '[INTRO] {late night} NIGHTFALL')], current);
+    const d = derive([scene(0, '[INTRO] NIGHTFALL {late night}')], current);
     expect(d.scenes[0]!.tag).toBe('LATE NIGHT');
     expect(d.songs[0]!.observed.tag).toEqual(['LATE NIGHT']);
   });
@@ -372,9 +373,10 @@ describe('reading more than one convention', () => {
   // renamed into the current convention, the rest still on the old one — and
   // both have to land in the same song or the grid falls apart mid-pass.
   const CURRENT = compilePattern(DEFAULT_SCENE_PATTERN)!;
+  const LEADING_TAG = compilePattern(LEADING_TAG_SCENE_PATTERN)!;
   const WITH_BPM = compilePattern(BPM_SCENE_PATTERN)!;
   const LEGACY = compilePattern(LEGACY_SCENE_PATTERN)!;
-  const ALL = [CURRENT, WITH_BPM, LEGACY];
+  const ALL = [CURRENT, LEADING_TAG, WITH_BPM, LEGACY];
 
   it('accepts a single pattern or a list, so existing callers are unaffected', () => {
     const one = derive([scene(0, 'Nightfall 128 Bm [verse]')], LEGACY);

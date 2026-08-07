@@ -68,8 +68,8 @@ describe('headers', () => {
   it('carries a song tag into every block header', () => {
     const d = derive(
       [
-        scene(0, '[A] {COVER} @Bm NIGHTFALL'),
-        scene(1, '[B] {COVER} @Bm NIGHTFALL'),
+        scene(0, '[A] @Bm NIGHTFALL {COVER}'),
+        scene(1, '[B] @Bm NIGHTFALL {COVER}'),
       ],
       PATTERN,
     );
@@ -79,8 +79,8 @@ describe('headers', () => {
   it('marks a tag disagreement without marking the musical facts', () => {
     const d = derive(
       [
-        scene(0, '[A] {COVER} @Bm NIGHTFALL'),
-        scene(1, '[B] {ORIGINAL} @Bm NIGHTFALL'),
+        scene(0, '[A] @Bm NIGHTFALL {COVER}'),
+        scene(1, '[B] @Bm NIGHTFALL {ORIGINAL}'),
       ],
       PATTERN,
     );
