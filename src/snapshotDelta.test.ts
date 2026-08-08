@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canApplyDelta, mergeTrackDelta } from './snapshotDelta.js';
+import { canApplyDelta, mergeRows, mergeTrackDelta } from './snapshotDelta.js';
 
 interface Clip {
   t: number;
@@ -97,5 +97,67 @@ describe('canApplyDelta', () => {
 
   it('refuses one from the future — a missed message, not a retry', () => {
     expect(canApplyDelta(4, 6)).toBe(false);
+  });
+});
+
+describe('mergeRows', () => {
+  interface Scene {
+    i: number;
+    name: string;
+  }
+  const scene = (i: number, name = `s${i}`): Scene => ({ i, name });
+
+  it('replaces the rows it names and leaves the rest', () => {
+    const before = [scene(0), scene(1), scene(2)];
+    expect(mergeRows(before, [scene(1, 'CHORUS')])).toEqual([
+      scene(0),
+      scene(1, 'CHORUS'),
+      scene(2),
+    ]);
+  });
+
+  it('keeps rows the delta says nothing about — the opposite of clip scope', () => {
+    // The contrast that justifies two merge functions. A clip absent from a
+    // scoped track is a deletion; a scene absent from a row payload is simply
+    // one that wasn't re-read.
+    const before = [scene(0), scene(1)];
+    expect(mergeRows(before, [])).toEqual(before);
+  });
+
+  it('drops a row for an index the set does not have', () => {
+    // Nothing later corrects it: a delta only rewrites what it names. A row
+    // beyond the end means the sender is describing a different set.
+    const before = [scene(0), scene(1)];
+    expect(mergeRows(before, [scene(1, 'kept'), scene(9, 'stray')])).toEqual([
+      scene(0),
+      scene(1, 'kept'),
+    ]);
+  });
+
+  it('applies several rows at once', () => {
+    const before = [scene(0), scene(1), scene(2)];
+    expect(mergeRows(before, [scene(2, 'C'), scene(0, 'A')])).toEqual([
+      scene(0, 'A'),
+      scene(1),
+      scene(2, 'C'),
+    ]);
+  });
+
+  it('preserves order regardless of the order rows arrive in', () => {
+    const before = [scene(0), scene(1), scene(2)];
+    const after = mergeRows(before, [scene(2, 'C'), scene(1, 'B')]);
+    expect(after.map((r) => r.i)).toEqual([0, 1, 2]);
+  });
+
+  it('does not mutate its inputs', () => {
+    const before = [scene(0), scene(1)];
+    const incoming = [scene(1, 'new')];
+    mergeRows(before, incoming);
+    expect(before).toEqual([scene(0), scene(1)]);
+    expect(incoming).toEqual([scene(1, 'new')]);
+  });
+
+  it('is a no-op on an empty held set', () => {
+    expect(mergeRows([], [scene(0)])).toEqual([]);
   });
 });

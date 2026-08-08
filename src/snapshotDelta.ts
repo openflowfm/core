@@ -52,6 +52,37 @@ export function mergeTrackDelta<T extends ClipAddress>(
   return out;
 }
 
+/** Anything addressed by its own index — a scene row, a track row. */
+export interface Indexed {
+  i: number;
+}
+
+/**
+ * Overlay re-read rows onto the ones in hand, matched by index.
+ *
+ * **An upsert, and the contrast with `mergeTrackDelta` is the whole point.**
+ * Clips merge by scope-then-replace because a clip can *vanish* — moved out of
+ * a slot, it is a deletion at the source, and an upsert has no entry with which
+ * to represent one. Rows cannot vanish that way. A scene at index 5 either
+ * exists or the set restructured, and a restructure renumbers everything and
+ * sends every client for a full walk, so there is no state where "row 5 is gone
+ * but rows 0-4 are still meaningful" needs expressing.
+ *
+ * That difference is why this takes no scope array. The incoming rows *are* the
+ * scope: what isn't mentioned wasn't looked at, and keeping it is correct.
+ *
+ * Rows outside the held range are dropped, on the same reasoning as out-of-scope
+ * clips — nothing later would ever correct one, because a delta only rewrites
+ * what it names. A row arriving for an index the set doesn't have means the
+ * sender is describing a different set than the one in hand.
+ */
+export function mergeRows<T extends Indexed>(rows: readonly T[], incoming: readonly T[]): T[] {
+  if (incoming.length === 0) return rows as T[];
+  const byIndex = new Map(incoming.map((r) => [r.i, r]));
+  const out = rows.map((r) => byIndex.get(r.i) ?? r);
+  return out;
+}
+
 /**
  * Whether a delta computed against `prevRev` can be applied to what we hold.
  *
