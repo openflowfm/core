@@ -21,12 +21,13 @@ src/songRows.ts      songs → grid rows + song headers, and what folding hides
 src/sceneMove.ts     reordering scenes: the index arithmetic, so it's testable
 src/clipMove.ts      dragging clips: the copy order, so nothing is clobbered
 src/snapshotDelta.ts merging a partial re-read of the set back in
+src/backstop.ts      when the client should re-walk the set on its own initiative
 src/songOrder.ts     a running order of songs → the order the scenes go in
 src/colorRules.ts    a color per song, from a rule over the whole set
 src/index.ts         barrel
 ```
 
-Run with `npm test` from the repo root. 457 tests.
+Run with `npm test` from the repo root. 477 tests.
 
 ## The one rule
 
