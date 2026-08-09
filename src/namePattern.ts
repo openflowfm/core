@@ -605,3 +605,26 @@ export function compilePattern(
   if (patternErrors(pattern, registry).length > 0) return null;
   return build(pattern, registry);
 }
+
+/**
+ * The scene patterns, until the scheme file lands and makes them editable.
+ *
+ * Four, in order: the convention we write, the short-lived leading-tag form,
+ * then the two BPM-bearing forms this app wrote before it. Derivation chooses
+ * the richest match, so a set named an old way still shows its songs and
+ * converts scene by scene as it's renamed.
+ *
+ * Compiled once at module scope, and shared rather than rebuilt per caller —
+ * `derive()` runs both in the browser (`useSongLayout`) and in the bridge
+ * (Push's song list), and two independently-built pattern lists are exactly
+ * the kind of drift this project's own naming scheme is designed to avoid.
+ *
+ * `!` is safe here and nowhere else — every one of these patterns has a test
+ * asserting it compiles.
+ */
+export const SCENE_PATTERNS = [
+  compilePattern(DEFAULT_SCENE_PATTERN)!,
+  compilePattern(LEADING_TAG_SCENE_PATTERN)!,
+  compilePattern(BPM_SCENE_PATTERN)!,
+  compilePattern(LEGACY_SCENE_PATTERN)!,
+];
