@@ -3,30 +3,33 @@
 Pure domain logic. This is where the actual thinking goes, and the only module with
 meaningful unit-test coverage.
 
-```
-src/color.ts         palette RGB → hex, luminance, brightness, ink, legibility
-src/livePalette.ts   the checked-in 70-color Live table, in color_index order
-src/lomAtoms.ts      parsing for the atom shapes the LOM returns
-src/pattern.ts       token template evaluation + song-title parsing
-src/trackColumns.ts  Live's flat track list → grid columns + group color bands
-src/groupSlot.ts     what a group track's clip slot shows at one scene
-src/gridRange.ts     block selection + active-cell movement over the columns
-src/ops.ts           building clip writes, reversing them, and applying them
-src/roles.ts         scene roles: the [role] tag, and scene writes
-src/songTags.ts      open song-tag syntax + editor suggestions
-src/sceneTitle.ts    the rest of the scene name — @{key} {SONG} - {ARTIST} {TAG}
-src/defaultArtist.ts safely fill blank artist facts across a set
-src/namePattern.ts   patterns that can be read back: format, parse, validate
-src/derive.ts        the set → the mapping, by reversing the pattern
-src/songRows.ts      songs → grid rows + song headers, and what folding hides
-src/sceneMove.ts     reordering scenes: the index arithmetic, so it's testable
-src/clipMove.ts      dragging clips: the copy order, so nothing is clobbered
-src/snapshotDelta.ts merging a partial re-read of the set back in — clips by scope, rows by index
-src/backstop.ts      when the client should re-walk the set on its own initiative
-src/songOrder.ts     a running order of songs → the order the scenes go in
-src/colorRules.ts    a color per song, from a rule over the whole set
-src/index.ts         barrel
-```
+**Read the row you need, not the file.** Each linked name jumps to why that module is the
+way it is; the ones without a link are covered fully by their line here.
+
+| file | | |
+|---|---|---|
+| [`color.ts`](#colorts) | palette RGB → hex, luminance, brightness, ink, legibility | |
+| `livePalette.ts` | the checked-in 70-color Live table, in `color_index` order | |
+| [`lomAtoms.ts`](#lomatomsts) | parsing for the atom shapes the LOM returns | ⚠ duplicated from `bridge/src/lom.ts` |
+| [`pattern.ts`](#patternts) | token template evaluation + song-title parsing | |
+| [`trackColumns.ts`](#trackcolumnsts) | Live's flat track list → grid columns + group color bands | |
+| [`groupSlot.ts`](#groupslotts) | what a group track's clip slot shows at one scene | |
+| [`gridRange.ts`](#gridrangets) | block selection + active-cell movement over the columns | |
+| [`ops.ts`](#opsts) | building clip writes, reversing them, and applying them | the undo story |
+| [`roles.ts`](#rolests) | scene roles: the `[role]` tag, and scene writes | |
+| `songTags.ts` | open song-tag syntax + editor suggestions | |
+| [`sceneTitle.ts`](#scenetitlets) | the rest of the scene name — `@{key} {SONG} - {ARTIST} {TAG}` | |
+| [`defaultArtist.ts`](#defaultartistts) | safely fill blank artist facts across a set | |
+| [`namePattern.ts`](#namepatternts) | patterns that can be read back: format, parse, validate | the keystone of the scheme |
+| [`derive.ts`](#derivets) | the set → the mapping, by reversing the pattern | |
+| [`songRows.ts`](#songrowsts) | songs → grid rows + song headers, and what folding hides | |
+| [`sceneMove.ts`](#scenemovets) | reordering scenes: the index arithmetic, so it's testable | ⚠ **can destroy work** |
+| [`clipMove.ts`](#clipmovets) | dragging clips: the copy order, so nothing is clobbered | |
+| [`snapshotDelta.ts`](#snapshotdeltats) | merging a partial re-read back in — clips by scope, rows by index | |
+| `backstop.ts` | when the client should re-walk the set on its own initiative | |
+| [`songOrder.ts`](#songorderts) | a running order of songs → the order the scenes go in | |
+| [`colorRules.ts`](#colorrulests) | a color per song, from a rule over the whole set | |
+| `index.ts` | barrel | |
 
 Run with `npm test` from the repo root. 517 tests.
 
@@ -50,7 +53,9 @@ If a function needs to know *how* data arrives, it belongs in `bridge/` or `ui/l
 
 ## What's here now
 
-**`pattern.ts`** — the naming half of the scheme. A pattern like
+### `pattern.ts`
+
+The naming half of the scheme. A pattern like
 `{bpm} {key} {label} {role}` renders to `128 Bm Arp Jam 1`. Unresolved tokens are
 dropped and whitespace collapsed, so a missing `{key}` can never write a literal
 `{key}` into a clip name and never leaves a double space.
@@ -63,14 +68,18 @@ second contradictory answer to "how do you read a title" — see `sceneTitle.ts`
 is the one with callers. `{label}` remains a token you can supply a value for; nothing
 parses it back out of a name.
 
-**`defaultArtist.ts`** — the set-wide naming default reduced to a safe scene-write plan.
+### `defaultArtist.ts`
+
+The set-wide naming default reduced to a safe scene-write plan.
 An artistless song is filled throughout; a partly filled song is completed only when the
 artist it already states is the default. A different or conflicting artist leaves that
 song alone, because filling only its blank scenes would manufacture the drift the songs
 list exists to report. The plan carries both its writes and the skipped songs so the UI
 can state the cost before applying it.
 
-**`lomAtoms.ts`** — deliberately duplicated from `bridge/src/lom.ts`. That file can't
+### `lomAtoms.ts`
+
+Deliberately duplicated from `bridge/src/lom.ts`. That file can't
 import anything (`module: "none"`), and this parsing is the part of the snapshot walk
 most likely to be wrong, so it lives here to be testable. `parseId(['id', 0]) === 0`
 is the occupancy test the entire slot scan hinges on.
@@ -86,7 +95,9 @@ give it its own value rather than a plausible default.
 **If you change the helpers in `lom.ts`, change these too.** The duplication is a
 known cost, accepted to get the tests.
 
-**`color.ts`** — Live's palette spans near-white to near-black, so a label sitting
+### `color.ts`
+
+Live's palette spans near-white to near-black, so a label sitting
 directly on a Live color needs per-swatch contrast. `inkOn()` picks dark or light ink,
 and **it asks `brightness()` rather than `luminance()`** — which is the whole reason
 both exist.
@@ -108,7 +119,9 @@ near-black panel, and Live's palette contains colors invisible there. It blends 
 white only as far as the contrast ratio demands, so the hue — the entire point of
 showing Live's color — survives. Pure black is the terminating case.
 
-**`trackColumns.ts`** — Live stores group membership as a parent link per track and
+### `trackColumns.ts`
+
+Live stores group membership as a parent link per track and
 allows groups inside groups, so this walks the link rather than inferring structure
 from track order. `buildColumns` gives every group a column of its own — a group track
 is a real track with real clip slots — and collapsing drops its *descendants* at any
@@ -124,7 +137,9 @@ parent is shown, so a group inside another opens a run in its own color rather t
 continuing its parent's. Cyclic parent links are guarded against rather than trusted,
 since a malformed one would hang the render.
 
-**`groupSlot.ts`** — a group slot holds no clip, and Live still draws it as a launcher
+### `groupSlot.ts`
+
+A group slot holds no clip, and Live still draws it as a launcher
 colored by the first clip the group holds in that scene. Both answers come from clips
 the snapshot already has, so the grid renders group slots without reading anything extra
 out of Live — the LOM exposes them per slot, which is trackCount × sceneCount reads for
@@ -132,7 +147,9 @@ something already in hand. Member order is load-bearing: it decides which clip i
 "first" and therefore what color the slot takes. `-1` means the group has nothing there
 and is not a color; black is `0` and is.
 
-**`snapshotDelta.ts`** — merging a partial re-read of the set back into the snapshot in
+### `snapshotDelta.ts`
+
+Merging a partial re-read of the set back into the snapshot in
 hand. The bridge follows edits made in Live by watching the Session cursor and re-reading
 only the tracks it touches (`bridge/README.md`, *Following Live*); this is the half that
 has to be right for that to be worth doing.
@@ -157,7 +174,9 @@ admitted.
 a delta may only be applied to the exact revision it was computed against. A mismatch is a
 missed message rather than an error, so the answer is a full walk, not a retry.
 
-**`clipMove.ts`** — a clip drag is a **rigid translation**: every clip picked up moves by
+### `clipMove.ts`
+
+A clip drag is a **rigid translation**: every clip picked up moves by
 the same `(dt, ds)`, and that is what makes the ordering problem solvable. Live has no
 move, so this is copy-then-delete like the scene reorder, which means the copies can
 clobber each other — moving a block down one scene, `(t,5) → (t,6)` before
@@ -183,7 +202,9 @@ remapping them in one pass, and that's the whole reason it isn't a one-liner —
 `orderSteps` chose is what keeps a block from eating its own tail, and any other order
 here would model a set Live never produces.
 
-**`gridRange.ts`** — shift-click and arrow-key movement, which look trivial and aren't.
+### `gridRange.ts`
+
+Shift-click and arrow-key movement, which look trivial and aren't.
 **Both axes work in rendered positions, never in indexes.** `columns` is the visible
 track indexes, `rows` the visible scene indexes. A collapsed group removes its tracks
 from the columns and a collapsed song removes its scenes from the rows, so a block from
@@ -205,7 +226,9 @@ you're sitting in feels like a fold rather than a jump.
 column sits left of every track column but isn't one of them, so `←` from the first track
 has to land on the scene and `→` from the scene has to land back on the first track.
 
-**`songRows.ts`** — the row-wise mirror of `trackColumns.ts`, and deliberately shaped
+### `songRows.ts`
+
+The row-wise mirror of `trackColumns.ts`, and deliberately shaped
 like it: one folds columns into a group header, this folds rows into a song header.
 
 **A header goes above each *block*, not each song.** A song is a label rather than a
@@ -253,7 +276,9 @@ on each change.
 An unmapped scene belongs to no song, so nothing can fold it away and leave it
 unreachable — there's a test for exactly that.
 
-**`sceneMove.ts`** — the one operation in this project that can destroy work, reduced
+### `sceneMove.ts`
+
+The one operation in this project that can destroy work, reduced
 to arithmetic so it can be proved without Live.
 
 Live has no scene-move call (`bridge/LOM.md`), so a move is build-then-delete: create
@@ -312,7 +337,9 @@ An order that isn't a permutation of the set **throws**. It can only be our own 
 plan built from a half-correct order would delete scenes it never copied. The UI catches
 it rather than letting it land mid-render.
 
-**`songOrder.ts`** — what a running order means in scenes, which is the input
+### `songOrder.ts`
+
+What a running order means in scenes, which is the input
 `planSceneReorder` needs. Two rules, both falling out of **a song being a label rather than
 a range**:
 
@@ -336,7 +363,9 @@ and finally name. Name, tag and key compare naturally without case; BPM compares
 numerically. Missing metadata stays at the end in either direction, and exact ties retain
 their current set order so a partial hierarchy never invents a secondary rule.
 
-**`colorRules.ts`** — a color per song for the whole set at once. `useSongColor` paints
+### `colorRules.ts`
+
+A color per song for the whole set at once. `useSongColor` paints
 what you selected with the swatch you pressed; this decides what every band should be:
 songs sharing a key sharing a color, or the palette walking with the tempo. Neither can be
 produced a swatch at a time, which is the reason it exists.
@@ -358,7 +387,9 @@ Three decisions carry it:
   one swap at each refill means no two songs in a row match. Independent draws clump, and
   a clump of one color across three adjacent songs is exactly what a band is for.
 
-**`ops.ts`** — the first piece of the undo story, and it's here because the whole point is
+### `ops.ts`
+
+The first piece of the undo story, and it's here because the whole point is
 that it's provable without Live. `inverseOps` turns a batch about to be written into the
 batch that puts it back, reading "before" out of the snapshot rather than asking Live —
 which is free, since a snapshot already holds every clip's name and color.
@@ -391,7 +422,9 @@ core has no palette and shouldn't grow one. `applySceneOps` needs no such thing 
 op already carries the RGB next to the index, that being the only form Live accepts for a
 scene at all.
 
-**`roles.ts`** — what a scene is *for*: `intro`, `verse`, `chorus`, `jam`. One role per
+### `roles.ts`
+
+What a scene is *for*: `intro`, `verse`, `chorus`, `jam`. One role per
 scene, stored as a bracketed tag in the scene's own name:
 
 ```
@@ -435,7 +468,9 @@ Unlike color, **tempo reverses cleanly in both directions**: "follows the song" 
 Live will accept a write for, where "no color" is not. So turning a tempo on is fully
 undoable and there's no counterpart to `countUnrevertableColors`.
 
-**`sceneTitle.ts`** — everything in a scene name *except* the role tag:
+### `sceneTitle.ts`
+
+Everything in a scene name *except* the role tag:
 
 ```
 [CHORUS] @Bm NIGHTFALL - THE AVIATORS {COVER}
@@ -520,7 +555,9 @@ overload predates this file (`pattern.ts` has a `{song}` token, the README talks
 song segmentation), so this follows the word already in use rather than inventing a
 second one. If it's ever renamed it has to be renamed in all three places at once.
 
-**`namePattern.ts`** — the keystone of the declarative scheme (issue #1), and the
+### `namePattern.ts`
+
+The keystone of the declarative scheme (issue #1), and the
 generalisation `sceneTitle.ts` is a hand-written special case of. A pattern compiles
 into a formatter, a parser, and a verdict on whether it was safe to compile at all.
 
@@ -563,7 +600,7 @@ Two things follow, both load-bearing:
   allowed. A pattern its author regrets is their problem; one the app can't read back is
   ours.
 
-### Optional groups
+#### Optional groups
 
 `( … )?` marks a run that appears together or not at all, carrying its own delimiters
 with it. It exists because the rule an optional *token* follows — take the literal before
@@ -596,7 +633,7 @@ Two smaller decisions worth not re-litigating:
   reads "Nightfall chorus" as song `N` and role `ightfall chorus` the moment the space
   between them stops being mandatory. There's a test holding that down.
 
-### Reading more than one convention
+#### Reading more than one convention
 
 `derive` takes a list of patterns and reads each name with **whichever gets the most out
 of it** — not the first that matches. That's forced rather than chosen: every scene
@@ -619,7 +656,9 @@ still collects into one entry because song identity folds case.
 the common and correct answer — this scene isn't named by the scheme yet — while a
 half-read name would attach a scene to the wrong song.
 
-**`derive.ts`** — the other half of the trick: run every scene name back through the
+### `derive.ts`
+
+The other half of the trick: run every scene name back through the
 compiled pattern and recover which song, artist, tag and role it belongs to. Scenes have no
 stable id in the LOM, and after this they don't need one, because **the name is the
 record**.
