@@ -15,6 +15,7 @@ src/ops.ts           building clip writes, reversing them, and applying them
 src/roles.ts         scene roles: the [role] tag, and scene writes
 src/songTags.ts      open song-tag syntax + editor suggestions
 src/sceneTitle.ts    the rest of the scene name — @{key} {SONG} - {ARTIST} {TAG}
+src/defaultArtist.ts safely fill blank artist facts across a set
 src/namePattern.ts   patterns that can be read back: format, parse, validate
 src/derive.ts        the set → the mapping, by reversing the pattern
 src/songRows.ts      songs → grid rows + song headers, and what folding hides
@@ -27,7 +28,7 @@ src/colorRules.ts    a color per song, from a rule over the whole set
 src/index.ts         barrel
 ```
 
-Run with `npm test` from the repo root. 508 tests.
+Run with `npm test` from the repo root. 517 tests.
 
 ## The one rule
 
@@ -61,6 +62,13 @@ convention settled the other way round, so that was removed rather than left as 
 second contradictory answer to "how do you read a title" — see `sceneTitle.ts`, which
 is the one with callers. `{label}` remains a token you can supply a value for; nothing
 parses it back out of a name.
+
+**`defaultArtist.ts`** — the set-wide naming default reduced to a safe scene-write plan.
+An artistless song is filled throughout; a partly filled song is completed only when the
+artist it already states is the default. A different or conflicting artist leaves that
+song alone, because filling only its blank scenes would manufacture the drift the songs
+list exists to report. The plan carries both its writes and the skipped songs so the UI
+can state the cost before applying it.
 
 **`lomAtoms.ts`** — deliberately duplicated from `bridge/src/lom.ts`. That file can't
 import anything (`module: "none"`), and this parsing is the part of the snapshot walk
