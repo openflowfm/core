@@ -18,6 +18,9 @@ being principled about where it was. Vertically it rescues to the *nearest* visi
 in the direction of travel rather than to the end of the set, so collapsing the song
 you're sitting in feels like a fold rather than a jump.
 
-`moveActive` wraps `stepCell` with the one case tests actually caught: the scene name
-column sits left of every track column but isn't one of them, so `←` from the first track
-has to land on the scene and `→` from the scene has to land back on the first track.
+`moveActive` wraps `stepCell` with the one case tests actually caught: the Master column
+sits left of every track column but isn't one of them, so `←` from the first track has to
+land on its scene cell and `→` from there has to land back on the first track. That cell
+is where `{on:'scene'}` renders — the leftmost cell of the clip space. The metadata column
+further left is not somewhere the active cell can sit, which is why `ActiveCell` has
+exactly two states and not three.
