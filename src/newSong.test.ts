@@ -7,7 +7,14 @@ import {
 } from './newSong.js';
 
 const PALETTE = [0x112233, 0xaabbcc];
-const BASE: NewSongDraft = { at: 12, name: 'Nightfall', key: '', bpm: '', colorIndex: null };
+const BASE: NewSongDraft = {
+  at: 12,
+  name: 'Nightfall',
+  artist: '',
+  key: '',
+  bpm: '',
+  colorIndex: null,
+};
 
 describe('planNewSong', () => {
   it('builds eight identically named, otherwise blank scenes', () => {
@@ -27,6 +34,27 @@ describe('planNewSong', () => {
       name: '@F#m NIGHTFALL',
       color: 0xaabbcc,
       tempo: 128,
+    });
+  });
+
+  it('writes the artist into the shared name', () => {
+    expect(
+      planNewSong({ ...BASE, artist: 'The Aviators', key: 'Bm' }, 12, PALETTE, []),
+    ).toEqual({
+      at: 12,
+      count: NEW_SONG_SCENES,
+      name: '@Bm NIGHTFALL - THE AVIATORS',
+    });
+  });
+
+  it('refuses a name that would read back as a song and an artist', () => {
+    // Eight scenes would otherwise carry a song this app then reads as two
+    // fields — caught at the field, which is the last point anyone can fix it.
+    expect(
+      newSongProblems({ ...BASE, name: 'Sunday - Bloody Sunday' }, 20, PALETTE, []),
+    ).toContainEqual({
+      field: 'name',
+      message: '"-" separates the artist — put that half in Artist.',
     });
   });
 

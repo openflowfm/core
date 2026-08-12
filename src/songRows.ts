@@ -37,6 +37,10 @@ export interface SongHeader {
   bpm: string;
   /** The musical key, not `songKey`. */
   key: string;
+  /** Who plays it, or every value when the scenes disagree. `''` when unstated. */
+  artist: string;
+  /** True when the song's scenes name more than one artist. */
+  artistClash: boolean;
   /** Song classification, or every value when the scenes disagree. */
   tag: string;
   /** True when the song's scenes carry more than one tag. */
@@ -81,7 +85,9 @@ function show(values: readonly (string | number)[]): string {
  * that shows them — anything listing songs has to spell them the same way, or
  * the same song reads differently in two places.
  */
-export function songFacts(song: DerivedSong): { bpm: string; key: string; tag: string } {
+export function songFacts(
+  song: DerivedSong,
+): { bpm: string; key: string; artist: string; tag: string } {
   return {
     // Names remain the durable source of truth. When they don't state a BPM,
     // Live's scene tempos can supply it only under derive's strict all-scenes
@@ -93,6 +99,7 @@ export function songFacts(song: DerivedSong): { bpm: string; key: string; tag: s
           ? ''
           : String(song.extractedBpm),
     key: show(song.observed.key),
+    artist: show(song.observed.artist),
     tag: show(song.observed.tag),
   };
 }
@@ -111,6 +118,7 @@ export function songRows(
       song.observed.bpm.length > 1 ||
       song.observed.key.length > 1 ||
       song.observed.tempo.length > 1;
+    const artistClash = song.observed.artist.length > 1;
     const tagClash = song.observed.tag.length > 1;
     // Color is kept out of `clash` on purpose: that one annotates the facts
     // strip, and a color disagreement is shown by the header's own band.
@@ -129,6 +137,8 @@ export function songRows(
         blocks: song.blocks.length,
         bpm: facts.bpm,
         key: facts.key,
+        artist: facts.artist,
+        artistClash,
         tag: facts.tag,
         tagClash,
         tempo: show(song.observed.tempo),

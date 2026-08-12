@@ -69,6 +69,7 @@ describe('derive', () => {
       name: 'Nightfall 128 Bm [intro]',
       fields: { song: 'Nightfall', bpm: '128', key: 'Bm', role: 'intro' },
       song: 'Nightfall',
+      artist: null,
       tag: null,
       role: 'intro',
       tempo: null,
@@ -86,6 +87,7 @@ describe('derive', () => {
     expect(d.songs[0]!.observed).toEqual({
       bpm: ['128'],
       key: ['Bm'],
+      artist: [],
       tag: [],
       tempo: [],
       colorIndex: [-1],
@@ -222,6 +224,53 @@ describe('scene tempo', () => {
     );
     expect(d.songs[0]!.blocks).toHaveLength(2);
     expect(d.songs[0]!.extractedBpm).toBeNull();
+  });
+});
+
+describe('the artist', () => {
+  const CURRENT = compilePattern(DEFAULT_SCENE_PATTERN)!;
+
+  it('is read off the name and observed like the other facts', () => {
+    const d = derive(
+      [
+        scene(0, '[INTRO] @Bm NIGHTFALL - THE AVIATORS'),
+        scene(1, '[VERSE] @Bm NIGHTFALL - THE AVIATORS'),
+      ],
+      CURRENT,
+    );
+    expect(d.scenes[0]!.artist).toBe('THE AVIATORS');
+    expect(d.songs[0]!.observed.artist).toEqual(['THE AVIATORS']);
+  });
+
+  it('is not part of song identity — one song, two artists is a disagreement', () => {
+    // The deliberate choice: `songKey` folds the name alone, so a set naming
+    // two artists for one title reports drift rather than quietly becoming two
+    // songs the library would then have to be taught to tell apart.
+    const d = derive(
+      [
+        scene(0, 'NIGHTFALL - THE AVIATORS'),
+        scene(1, 'NIGHTFALL - SUN & STEEL'),
+      ],
+      CURRENT,
+    );
+    expect(d.songs).toHaveLength(1);
+    expect(d.songs[0]!.scenes).toEqual([0, 1]);
+    expect(disagreements(d)).toContainEqual({
+      song: 'NIGHTFALL',
+      field: 'artist',
+      values: ['THE AVIATORS', 'SUN & STEEL'],
+    });
+  });
+
+  it('collects a half-named song into one entry, so a rename can finish it', () => {
+    const d = derive(
+      [scene(0, 'NIGHTFALL - THE AVIATORS'), scene(1, 'NIGHTFALL')],
+      CURRENT,
+    );
+    expect(d.songs).toHaveLength(1);
+    // An unstated artist is an omission, not a value — the same rule bpm and
+    // key follow, and the opposite of colorIndex.
+    expect(d.songs[0]!.observed.artist).toEqual(['THE AVIATORS']);
   });
 });
 

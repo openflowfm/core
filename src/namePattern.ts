@@ -56,8 +56,8 @@ export type TokenRegistry = Readonly<Record<string, TokenSpec>>;
 /**
  * The convention the app writes.
  *
- *   [CHORUS] @Bm NIGHTFALL {COVER}
- *    └ role┘  │   └ song ┘  └ tag┘
+ *   [CHORUS] @Bm NIGHTFALL - THE AVIATORS {COVER}
+ *    └ role┘  │   └ song ┘   └ artist ┘   └ tag┘
  *             └ key
  *
  * **Role first, then key and name, with the song tag last.** Live's narrow
@@ -74,8 +74,24 @@ export type TokenRegistry = Readonly<Record<string, TokenSpec>>;
  * could only be recognised by matching the vocabulary, so renaming a role would
  * make every scene using it silently roleless. `key` is recognised by *shape*,
  * so it needs no such protection. See `roles.ts`.
+ *
+ * `{artist}` is the second free token, and the one place this pattern language
+ * takes the *resolvable* side of its own ambiguity rule: `" - "` is what says
+ * where the song stops, exactly as `{song} - {label}` is allowed where
+ * `{song} {label}` is not. `{song}` matches lazily, so the **first** `" - "`
+ * splits — a song genuinely called `SUNDAY - BLOODY SUNDAY` reads as a song by
+ * an artist, and has to be renamed to say otherwise. That's the cost of putting
+ * two free fields in one string, and it's why the separator is the part worth
+ * making configurable first.
  */
-export const DEFAULT_SCENE_PATTERN = '([{role}])? (@{key?})? {song} ({{tag}})?';
+export const DEFAULT_SCENE_PATTERN =
+  '([{role}])? (@{key?})? {song} ( - {artist})? ({{tag}})?';
+
+// There is deliberately no artistless entry in SCENE_PATTERNS below. The
+// artist group is optional, so this pattern matches everything its predecessor
+// matched and reads at least as many fields out of it — a second copy without
+// the group could never win `readName`'s most-fields rule, and a pattern that
+// can never be chosen is a comment pretending to be code.
 
 /** The short-lived leading-tag convention, read so in-progress sets migrate. */
 export const LEADING_TAG_SCENE_PATTERN = '([{role}])? ({{tag}})? (@{key?})? {song}';
@@ -105,6 +121,14 @@ export const LEGACY_SCENE_PATTERN = '{song} {bpm?} {key?} [{role?}]';
  */
 export const SCENE_TOKENS: TokenRegistry = {
   song: { shape: '.+', free: true, samples: ['Nightfall', 'Glass Tunnel'] },
+  artist: {
+    // Free, like `song`, and legal beside it only because a literal separates
+    // them. The second sample carries the punctuation an artist name actually
+    // uses, so the round-trip probe holds that freedom down.
+    shape: '.+',
+    free: true,
+    samples: ['The Aviators', "Sun & Steel's Trio"],
+  },
   bpm: { shape: '\\d{2,3}', samples: ['128', '92'] },
   key: { shape: '[A-G][#b]?m?', samples: ['Bm', 'F#m'] },
   tag: {
@@ -318,7 +342,11 @@ export function describePatternError(e: PatternError): string {
     case 'run-together':
       return `{${e.a}} and {${e.b}} need something between them, or a name can't be split.`;
     case 'optional-free':
-      return `{${e.token}?} is free text, and a missing free field is indistinguishable from an empty one.`;
+      return (
+        `{${e.token}} is free text in an optional position with nothing to open it, ` +
+        `so a missing value can't be told from an empty one. Give it a literal to ` +
+        `follow — "( - {${e.token}})?" — or make it required.`
+      );
     case 'optional-first':
       return `{${e.token}?} needs something before it, so there is a separator to drop with it.`;
     case 'no-round-trip':
@@ -378,12 +406,21 @@ function structuralErrors(
       errors.push({ kind: 'optional-free', token: t.name });
     }
   }
-  // A free token inside an optional group is the same mistake wearing a group:
-  // an absent free field and an empty one are indistinguishable either way.
+  // A free token inside a group is fine **only when the group brings its own
+  // opening literal**, and that mirrors the two-free-tokens rule below: what
+  // makes free text readable is a separator, not a bracket. `( - {artist})?`
+  // has one, so an absent artist takes the `" - "` with it and a present one is
+  // bounded on the left; `({song})? {bpm}` has none, and an absent free field is
+  // then indistinguishable from an empty one exactly as it is anywhere else.
   for (const g of segments) {
     if (g.kind !== 'group') continue;
-    for (const t of tokensIn(g.nodes)) {
-      if (registry[t.name]?.free) errors.push({ kind: 'optional-free', token: t.name });
+    for (let i = 0; i < g.nodes.length; i++) {
+      const t = g.nodes[i]!;
+      if (t.kind !== 'token' || !registry[t.name]?.free) continue;
+      const opened = g.nodes
+        .slice(0, i)
+        .some((n) => n.kind === 'literal' && n.text.trim() !== '');
+      if (!opened) errors.push({ kind: 'optional-free', token: t.name });
     }
   }
   // Unknown tokens make every check below meaningless — there's no shape to
@@ -613,6 +650,12 @@ export function compilePattern(
  * then the two BPM-bearing forms this app wrote before it. Derivation chooses
  * the richest match, so a set named an old way still shows its songs and
  * converts scene by scene as it's renamed.
+ *
+ * Only the first reads `{artist}`. The older three are kept byte-for-byte as
+ * the code that wrote them spelled them — a fallback that parses old names
+ * *differently* from the code that wrote them is worse than not having one — so
+ * a name still in a BPM-bearing form keeps its artist in the song until it's
+ * renamed, which is exactly how every other convention change has migrated.
  *
  * Compiled once at module scope, and shared rather than rebuilt per caller —
  * `derive()` runs both in the browser (`useSongLayout`) and in the bridge

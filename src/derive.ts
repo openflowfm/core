@@ -50,6 +50,8 @@ export interface DerivedScene {
   fields: Record<string, string> | null;
   /** Convenience readings of the tokens the rest of the system acts on. */
   song: string | null;
+  /** Who plays it. A fact about the song, never part of its identity. */
+  artist: string | null;
   tag: string | null;
   role: string | null;
   /** The scene's own tempo, or `null` when it follows the song's. */
@@ -94,6 +96,16 @@ export interface DerivedSong {
     /** `{bpm}` as written in the names. */
     bpm: string[];
     key: string[];
+    /**
+     * `{artist}` as written in the names, normalized to uppercase.
+     *
+     * Observed like the others rather than folded into identity: `songKey` is
+     * the song name alone, so a set naming two artists for one song reports a
+     * disagreement instead of quietly becoming two songs. Two genuinely
+     * different songs that share a title are the case this doesn't split, and
+     * the songs list already flags that shape as more than one block.
+     */
+    artist: string[];
     /** `{tag}` as written in the names, normalized to uppercase. */
     tag: string[];
     /** `Scene.tempo`, which is the same fact from Live's own property. */
@@ -205,6 +217,7 @@ export function derive(
   for (const sc of ordered) {
     const fields = readName(sc.name, patterns);
     const song = fields?.song ?? null;
+    const artist = fields?.artist?.toUpperCase() ?? null;
     const tag = fields?.tag?.toUpperCase() ?? null;
     const tempo = sc.tempo >= MIN_TEMPO ? sc.tempo : null;
 
@@ -213,6 +226,7 @@ export function derive(
       name: sc.name,
       fields,
       song,
+      artist,
       tag,
       role: fields?.role ?? null,
       tempo,
@@ -232,7 +246,7 @@ export function derive(
         scenes: [],
         blocks: [],
         extractedBpm: null,
-        observed: { bpm: [], key: [], tag: [], tempo: [], colorIndex: [] },
+        observed: { bpm: [], key: [], artist: [], tag: [], tempo: [], colorIndex: [] },
       };
       bySong.set(key, entry);
       songs.push(entry);
@@ -240,6 +254,7 @@ export function derive(
     entry.scenes.push(sc.i);
     push(entry.observed.bpm, fields.bpm);
     push(entry.observed.key, fields.key);
+    push(entry.observed.artist, artist);
     push(entry.observed.tag, tag);
     push(entry.observed.tempo, tempo);
     // Not through `push`: it drops `''`/null as "the name didn't say", and an
@@ -305,12 +320,12 @@ export function songsOfScenes(d: Derivation, scenes: readonly number[]): Derived
 /** Songs the set can't answer for consistently — the input to lint. */
 export function disagreements(d: Derivation): Array<{
   song: string;
-  field: 'bpm' | 'key' | 'tag' | 'tempo' | 'color';
+  field: 'bpm' | 'key' | 'artist' | 'tag' | 'tempo' | 'color';
   values: string[];
 }> {
   const out: Array<{
     song: string;
-    field: 'bpm' | 'key' | 'tag' | 'tempo' | 'color';
+    field: 'bpm' | 'key' | 'artist' | 'tag' | 'tempo' | 'color';
     values: string[];
   }> = [];
   for (const song of d.songs) {
@@ -319,6 +334,9 @@ export function disagreements(d: Derivation): Array<{
     }
     if (song.observed.key.length > 1) {
       out.push({ song: song.name, field: 'key', values: song.observed.key });
+    }
+    if (song.observed.artist.length > 1) {
+      out.push({ song: song.name, field: 'artist', values: song.observed.artist });
     }
     if (song.observed.tag.length > 1) {
       out.push({ song: song.name, field: 'tag', values: song.observed.tag });

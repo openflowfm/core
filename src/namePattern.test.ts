@@ -26,7 +26,9 @@ const compile = (p: string, r?: TokenRegistry) => {
 
 describe('accepting and rejecting patterns', () => {
   it('compiles the default scene pattern — App.tsx asserts this with a !', () => {
-    expect(DEFAULT_SCENE_PATTERN).toBe('([{role}])? (@{key?})? {song} ({{tag}})?');
+    expect(DEFAULT_SCENE_PATTERN).toBe(
+      '([{role}])? (@{key?})? {song} ( - {artist})? ({{tag}})?',
+    );
     expect(patternErrors(DEFAULT_SCENE_PATTERN)).toEqual([]);
     expect(compilePattern(DEFAULT_SCENE_PATTERN)).not.toBeNull();
   });
@@ -127,8 +129,40 @@ describe('accepting and rejecting patterns', () => {
   });
 });
 
-describe('the shipped convention: ([{role}])? (@{key?})? {song} ({{tag}})?', () => {
+describe('the shipped convention: ([{role}])? (@{key?})? {song} ( - {artist})? ({{tag}})?', () => {
   const c = compile(FULL);
+
+  it('writes and reads the artist behind its separator', () => {
+    expect(
+      c.format({ song: 'Nightfall', artist: 'The Aviators', key: 'Bm', role: 'chorus' }),
+    ).toBe('[chorus] @Bm Nightfall - The Aviators');
+    expect(c.parse('[chorus] @Bm Nightfall - The Aviators {COVER}')).toEqual({
+      song: 'Nightfall',
+      artist: 'The Aviators',
+      tag: 'COVER',
+      key: 'Bm',
+      role: 'chorus',
+    });
+  });
+
+  it('drops the separator with the artist', () => {
+    expect(c.format({ song: 'Nightfall', tag: 'COVER' })).toBe('Nightfall {COVER}');
+  });
+
+  it('splits at the first separator — the lazy {song} rule, stated', () => {
+    // Two free fields in one string can only be split by their separator, and
+    // the reading that fills the most parts wins. A song genuinely called
+    // "Sunday - Bloody Sunday" is the price, and it's why the separator is the
+    // thing worth making configurable.
+    expect(c.parse('Sunday - Bloody Sunday - The Band')).toEqual({
+      song: 'Sunday',
+      artist: 'Bloody Sunday - The Band',
+    });
+  });
+
+  it('needs the spaces, so a hyphenated title stays whole', () => {
+    expect(c.parse('Twenty-One')).toEqual({ song: 'Twenty-One' });
+  });
 
   it('writes a full name', () => {
     expect(c.format({ song: 'Nightfall', tag: 'COVER', bpm: '128', key: 'Bm', role: 'chorus' })).toBe(
@@ -286,12 +320,26 @@ describe('optional groups', () => {
     expect(c.format({ song: 'X' })).toBe('X'); // '@' goes with the group
   });
 
-  it('rejects a free token inside a group, like anywhere else', () => {
-    // Absent and empty are indistinguishable for free text wherever it sits.
+  it('rejects a free token in a group with nothing to open it', () => {
+    // Absent and empty are indistinguishable for free text with no separator,
+    // group or no group. A bracket around it changes nothing.
     expect(patternErrors('({song})? {bpm}')).toContainEqual({
       kind: 'optional-free',
       token: 'song',
     });
+  });
+
+  it('allows one once the group brings its own separator', () => {
+    // The group's `" - "` is what says where the artist starts, and it leaves
+    // with the artist — which is the whole reason groups exist. Same rule as
+    // `{song} - {label}` being allowed where `{song} {label}` is not.
+    expect(patternErrors('{song} ( - {artist})?')).toEqual([]);
+    const c = compile('{song} ( - {artist})?');
+    expect(c.parse('Glass Tunnel - Sun & Steel')).toEqual({
+      song: 'Glass Tunnel',
+      artist: 'Sun & Steel',
+    });
+    expect(c.parse('Glass Tunnel')).toEqual({ song: 'Glass Tunnel' });
   });
 
   it('treats an unclosed ( as a literal rather than failing to compile', () => {
@@ -401,6 +449,7 @@ describe('compilePattern', () => {
       { name: 'role', optional: true },
       { name: 'key', optional: true },
       { name: 'song', optional: false },
+      { name: 'artist', optional: true },
       { name: 'tag', optional: true },
     ]);
   });

@@ -76,6 +76,35 @@ describe('headers', () => {
     expect(songRows(d).headers.get(0)).toMatchObject({ tag: 'COVER', tagClash: false });
   });
 
+  it('carries the artist, and marks a disagreement like the tag does', () => {
+    // Its own flag rather than folding into `clash`: that one annotates the
+    // bpm/key strip, and the artist sits with the name.
+    const agreed = derive(
+      [
+        scene(0, '[A] @Bm NIGHTFALL - THE AVIATORS'),
+        scene(1, '[B] @Bm NIGHTFALL - THE AVIATORS'),
+      ],
+      PATTERN,
+    );
+    expect(songRows(agreed).headers.get(0)).toMatchObject({
+      artist: 'THE AVIATORS',
+      artistClash: false,
+    });
+
+    const split = derive(
+      [
+        scene(0, '[A] @Bm NIGHTFALL - THE AVIATORS'),
+        scene(1, '[B] @Bm NIGHTFALL - SUN & STEEL'),
+      ],
+      PATTERN,
+    );
+    expect(songRows(split).headers.get(0)).toMatchObject({
+      artist: 'THE AVIATORS / SUN & STEEL',
+      artistClash: true,
+      clash: false,
+    });
+  });
+
   it('marks a tag disagreement without marking the musical facts', () => {
     const d = derive(
       [

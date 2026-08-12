@@ -14,7 +14,7 @@ src/gridRange.ts     block selection + active-cell movement over the columns
 src/ops.ts           building clip writes, reversing them, and applying them
 src/roles.ts         scene roles: the [role] tag, and scene writes
 src/songTags.ts      open song-tag syntax + editor suggestions
-src/sceneTitle.ts    the rest of the scene name — @{key} {SONG} {TAG}
+src/sceneTitle.ts    the rest of the scene name — @{key} {SONG} - {ARTIST} {TAG}
 src/namePattern.ts   patterns that can be read back: format, parse, validate
 src/derive.ts        the set → the mapping, by reversing the pattern
 src/songRows.ts      songs → grid rows + song headers, and what folding hides
@@ -27,7 +27,7 @@ src/colorRules.ts    a color per song, from a rule over the whole set
 src/index.ts         barrel
 ```
 
-Run with `npm test` from the repo root. 484 tests.
+Run with `npm test` from the repo root. 508 tests.
 
 ## The one rule
 
@@ -430,12 +430,13 @@ undoable and there's no counterpart to `countUnrevertableColors`.
 **`sceneTitle.ts`** — everything in a scene name *except* the role tag:
 
 ```
-[CHORUS] @Bm NIGHTFALL {COVER}
- └ role┘  │   └ song ┘  └ tag┘       roles.ts owns the role
+[CHORUS] @Bm NIGHTFALL - THE AVIATORS {COVER}
+ └ role┘  │   └ song ┘   └ artist ┘    └ tag┘   roles.ts owns the role
           └ key
 ```
 
-An optional key precedes the required song, and an optional song tag follows it.
+An optional key precedes the required song, an optional artist follows it behind
+`" - "`, and an optional song tag comes last.
 `roles.ts` owns the bracketed role, this owns what follows it, and `titleOps` composes them — it rewrites the title and
 puts the scene's own role back on, so renaming a song across eighteen scenes doesn't
 disturb the roles you assigned them.
@@ -470,6 +471,26 @@ restructure. There's a test per shape for exactly that.
 so `NIGHTFALL` and `Nightfall` are one song and the uppercase is presentation rather than
 identity — which is exactly what stops the convention change from splitting the library in
 two while a set is half-converted.
+
+**The artist is a fact about the song, not part of its identity.** `songKey` folds the name
+alone, so two scenes naming different artists for one title are a *disagreement* the songs
+list reports in amber, exactly like two keys — not two songs. That follows the split the
+whole scheme rests on: the library is authoritative for what a song *is*, and the set
+states it. The case it deliberately doesn't split is two genuinely different songs sharing
+a title, which already shows up as more than one block.
+
+**Song and artist are both free text, so the separator is the only thing that can divide
+them** — the same rule `namePattern.ts` states for `{song} - {label}`. The split takes the
+**first** `" - "`, because the compiled `{song}` matches lazily and the two parsers have to
+agree; a name that read one way in the grid and another in a rename would map one song and
+write a different one. There's a test comparing them shape by shape. The cost is real and
+unavoidable: a song genuinely called `SUNDAY - BLOODY SUNDAY` now reads as a song by an
+artist. The editors refuse to *write* one — `splitsAsArtist` is what they ask — so the only
+way to get one is a name typed into Live.
+
+The spaces around the hyphen are load-bearing, and that's what keeps `TWENTY-ONE` whole.
+`formatTitle` drops an artist with no song rather than writing `" - THE AVIATORS"`, which
+would read back as a song called that: the unwritable half goes instead of the round trip.
 
 `parseTitle` also still reads the short-lived leading-tag form and both older BPM-bearing
 forms: leading `@128-Bm` and legacy trailing `128 Bm`. That's the migration path: a set
@@ -506,6 +527,7 @@ Two kinds of ambiguity, and **only one is fatal**:
 |---|---|---|
 | **Undecidable** | `{song} {label}` | Two free fields, whitespace between. "Glass Tunnel Arp" splits three ways and nothing says which. Rejected. |
 | **Resolvable** | `{song} {bpm?}` | "Nightfall 128" is a song called that, *or* a song at 128. Both real, one obviously meant. Allowed, under a stated rule. |
+| **Resolvable** | `{song} ( - {artist})?` | The shipped convention. "Sunday - Bloody Sunday" is a song called that, *or* a song by that artist. The separator says which reading fills more parts. |
 
 The rule for the second is **a name is read as filling as many parts as it can**,
 implemented by matching the free token lazily. That's why `{song} {label}` is rejected
@@ -547,6 +569,12 @@ only while both sides do; a literal at the group's edge stands as long as the gr
 That one rule is what makes `@128-Bm`, `@128` and `@Bm` fall out of a single pattern
 rather than three.
 
+**A free token may sit in a group, but only behind a literal.** `( - {artist})?` is legal
+and `({artist})?` is not, which is the two-free-tokens rule again rather than a second one:
+what makes free text readable back is a separator, and a bracket that contains no separator
+adds nothing. Sitting inside the group is what lets the `" - "` leave with the artist
+instead of stranding it on a song that has none.
+
 Groups don't nest. One level covers everything the scheme needs, and a nested version
 would need a story for what a half-present inner group means that nobody has a use for.
 
@@ -584,8 +612,9 @@ the common and correct answer — this scene isn't named by the scheme yet — w
 half-read name would attach a scene to the wrong song.
 
 **`derive.ts`** — the other half of the trick: run every scene name back through the
-compiled pattern and recover which song, tag and role it belongs to. Scenes have no stable id
-in the LOM, and after this they don't need one, because **the name is the record**.
+compiled pattern and recover which song, artist, tag and role it belongs to. Scenes have no
+stable id in the LOM, and after this they don't need one, because **the name is the
+record**.
 
 A song is a **label, not a range** — whatever scenes carry its name, wherever they sit —
 so a reprise sixty scenes later is the same song for free. `blocks` reports the

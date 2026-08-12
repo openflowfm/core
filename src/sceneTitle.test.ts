@@ -7,15 +7,18 @@ import {
   isTag,
   parseTitle,
   patchTitle,
+  splitsAsArtist,
   titleOf,
   titleOps,
 } from './sceneTitle.js';
+import { compilePattern, DEFAULT_SCENE_PATTERN } from './namePattern.js';
 import type { SceneFields } from './roles.js';
 
 describe('parseTitle', () => {
   it('splits the full convention', () => {
     expect(parseTitle('Nightfall 128 Bm')).toEqual({
       song: 'Nightfall',
+      artist: '',
       tag: '',
       bpm: '128',
       key: 'Bm',
@@ -25,6 +28,7 @@ describe('parseTitle', () => {
   it('keeps a multi-word song together', () => {
     expect(parseTitle('Glass Tunnel 124 F#m')).toEqual({
       song: 'Glass Tunnel',
+      artist: '',
       tag: '',
       bpm: '124',
       key: 'F#m',
@@ -32,25 +36,26 @@ describe('parseTitle', () => {
   });
 
   it('reads a bpm with no key', () => {
-    expect(parseTitle('Nightfall 128')).toEqual({ song: 'Nightfall', tag: '', bpm: '128', key: '' });
+    expect(parseTitle('Nightfall 128')).toEqual({ song: 'Nightfall', artist: '', tag: '', bpm: '128', key: '' });
   });
 
   it('reads a key with no bpm', () => {
-    expect(parseTitle('Nightfall Bm')).toEqual({ song: 'Nightfall', tag: '', bpm: '', key: 'Bm' });
+    expect(parseTitle('Nightfall Bm')).toEqual({ song: 'Nightfall', artist: '', tag: '', bpm: '', key: 'Bm' });
   });
 
   it('reads bpm and key with no song', () => {
-    expect(parseTitle('128 Bm')).toEqual({ song: '', tag: '', bpm: '128', key: 'Bm' });
+    expect(parseTitle('128 Bm')).toEqual({ song: '', artist: '', tag: '', bpm: '128', key: 'Bm' });
   });
 
   it('leaves a title that follows no convention entirely in song', () => {
-    expect(parseTitle('Arp Jam 2')).toEqual({ song: 'Arp Jam 2', tag: '', bpm: '', key: '' });
-    expect(parseTitle('Audio 3')).toEqual({ song: 'Audio 3', tag: '', bpm: '', key: '' });
+    expect(parseTitle('Arp Jam 2')).toEqual({ song: 'Arp Jam 2', artist: '', tag: '', bpm: '', key: '' });
+    expect(parseTitle('Audio 3')).toEqual({ song: 'Audio 3', artist: '', tag: '', bpm: '', key: '' });
   });
 
   it('only takes bpm and key off the end, never from the middle', () => {
     expect(parseTitle('Nightfall Bm 128')).toEqual({
       song: 'Nightfall Bm',
+      artist: '',
       tag: '',
       bpm: '128',
       key: '',
@@ -58,8 +63,92 @@ describe('parseTitle', () => {
   });
 
   it('handles an empty title', () => {
-    expect(parseTitle('')).toEqual({ song: '', tag: '', bpm: '', key: '' });
-    expect(parseTitle('   ')).toEqual({ song: '', tag: '', bpm: '', key: '' });
+    expect(parseTitle('')).toEqual({ song: '', artist: '', tag: '', bpm: '', key: '' });
+    expect(parseTitle('   ')).toEqual({ song: '', artist: '', tag: '', bpm: '', key: '' });
+  });
+});
+
+describe('parseTitle — the artist', () => {
+  it('splits the song from who plays it', () => {
+    expect(parseTitle('@Bm NIGHTFALL - THE AVIATORS {COVER}')).toEqual({
+      song: 'NIGHTFALL',
+      artist: 'THE AVIATORS',
+      tag: 'COVER',
+      bpm: '',
+      key: 'Bm',
+    });
+  });
+
+  it('splits at the first separator, like the compiled pattern does', () => {
+    // Both parsers have to answer the same thing or the grid shows one song and
+    // a rename writes another. `namePattern`'s {song} is lazy; this is that.
+    expect(parseTitle('ALPHA - BETA - GAMMA').song).toBe('ALPHA');
+    expect(parseTitle('ALPHA - BETA - GAMMA').artist).toBe('BETA - GAMMA');
+  });
+
+  it('needs the spaces — a hyphenated title stays whole', () => {
+    expect(parseTitle('TWENTY-ONE')).toEqual({
+      song: 'TWENTY-ONE',
+      artist: '',
+      tag: '',
+      bpm: '',
+      key: '',
+    });
+  });
+
+  it('keeps a half-written separator in the song rather than tearing it', () => {
+    expect(parseTitle('NIGHTFALL - ').song).toBe('NIGHTFALL -');
+    expect(parseTitle('- THE AVIATORS').song).toBe('- THE AVIATORS');
+    expect(parseTitle('- THE AVIATORS').artist).toBe('');
+  });
+
+  it('reads an artist off an older name too, after its trailing facts', () => {
+    expect(parseTitle('Nightfall - The Aviators 128 Bm')).toEqual({
+      song: 'Nightfall',
+      artist: 'The Aviators',
+      tag: '',
+      bpm: '128',
+      key: 'Bm',
+    });
+  });
+
+  it('agrees with the compiled pattern on every shape', () => {
+    // The two parsers are independent implementations of one convention, and
+    // this is the only thing holding them together. `titleOf` strips the role,
+    // so the role token is left off both sides.
+    //
+    // Names ending in a key-shaped word are left out on purpose: this parser
+    // also reads the legacy trailing `128 Bm`, so it takes the `C` off
+    // "ALPHA - BETA - C" where the current pattern doesn't. That's the
+    // migration path doing its job, not the two disagreeing about an artist —
+    // derivation compiles the legacy pattern too and picks the richer read.
+    const compiled = compilePattern(DEFAULT_SCENE_PATTERN)!;
+    for (const name of [
+      '@Bm NIGHTFALL - THE AVIATORS {COVER}',
+      '@Bm NIGHTFALL - THE AVIATORS',
+      'NIGHTFALL - THE AVIATORS {COVER}',
+      'NIGHTFALL - THE AVIATORS',
+      'NIGHTFALL {COVER}',
+      'NIGHTFALL',
+      'ALPHA - BETA - GAMMA',
+      'TWENTY-ONE',
+      'GLASS TUNNEL - SUN & STEEL',
+    ]) {
+      const hand = parseTitle(name);
+      const read = compiled.parse(name) ?? {};
+      expect({ song: read.song ?? '', artist: read.artist ?? '' }, name).toEqual({
+        song: hand.song,
+        artist: hand.artist,
+      });
+    }
+  });
+});
+
+describe('splitsAsArtist', () => {
+  it('is what the editors ask before writing a song name', () => {
+    expect(splitsAsArtist('SUNDAY - BLOODY SUNDAY')).toBe(true);
+    expect(splitsAsArtist('TWENTY-ONE')).toBe(false);
+    expect(splitsAsArtist('NIGHTFALL')).toBe(false);
   });
 });
 
@@ -70,6 +159,10 @@ describe('parse/format round-trip', () => {
   const titles = [
     '@Bm NIGHTFALL',
     '@Bm NIGHTFALL {COVER}',
+    '@Bm NIGHTFALL - THE AVIATORS',
+    '@Bm NIGHTFALL - THE AVIATORS {COVER}',
+    'GLASS TUNNEL - SUN & STEEL',
+    'TWENTY-ONE',
     'GLASS TUNNEL {ORIGINAL}',
     'NIGHTFALL {JAM}',
     'GLASS TUNNEL {LATE NIGHT}',
@@ -116,13 +209,27 @@ describe('parse/format round-trip', () => {
 
 describe('formatTitle', () => {
   it('writes tag, key and song, never bpm', () => {
-    expect(formatTitle({ song: 'Nightfall', tag: 'COVER', bpm: '', key: 'Bm' })).toBe(
+    expect(formatTitle({ song: 'Nightfall', artist: '', tag: 'COVER', bpm: '', key: 'Bm' })).toBe(
       '@Bm NIGHTFALL {COVER}',
     );
-    expect(formatTitle({ song: 'Nightfall', tag: '', bpm: '128', key: '' })).toBe('NIGHTFALL');
-    expect(formatTitle({ song: 'Nightfall', tag: '', bpm: '128', key: 'Bm' })).toBe('@Bm NIGHTFALL');
-    expect(formatTitle({ song: 'Nightfall', tag: '', bpm: '', key: '' })).toBe('NIGHTFALL');
-    expect(formatTitle({ song: '', tag: '', bpm: '', key: '' })).toBe('');
+    expect(formatTitle({ song: 'Nightfall', artist: '', tag: '', bpm: '128', key: '' })).toBe('NIGHTFALL');
+    expect(formatTitle({ song: 'Nightfall', artist: '', tag: '', bpm: '128', key: 'Bm' })).toBe('@Bm NIGHTFALL');
+    expect(formatTitle({ song: 'Nightfall', artist: '', tag: '', bpm: '', key: '' })).toBe('NIGHTFALL');
+    expect(formatTitle({ song: '', artist: '', tag: '', bpm: '', key: '' })).toBe('');
+  });
+
+  it('writes the artist behind the song, in caps like it', () => {
+    expect(
+      formatTitle({ song: 'Nightfall', artist: 'The Aviators', tag: 'COVER', bpm: '', key: 'Bm' }),
+    ).toBe('@Bm NIGHTFALL - THE AVIATORS {COVER}');
+  });
+
+  it('drops an artist with no song rather than writing a name it would misread', () => {
+    // " - THE AVIATORS" comes back as a song called that, so the half the
+    // convention can't express goes instead of the round trip.
+    expect(formatTitle({ song: '', artist: 'The Aviators', tag: '', bpm: '', key: 'Bm' })).toBe(
+      '@Bm',
+    );
   });
 });
 
@@ -144,17 +251,18 @@ describe('isBpm / isKey / isTag', () => {
 });
 
 describe('patchTitle', () => {
-  const t = { song: 'Nightfall', tag: 'COVER', bpm: '128', key: 'Bm' };
+  const t = { song: 'Nightfall', artist: '', tag: 'COVER', bpm: '128', key: 'Bm' };
 
   it('leaves an omitted field alone', () => {
-    expect(patchTitle(t, { bpm: '92' })).toEqual({ song: 'Nightfall', tag: 'COVER', bpm: '92', key: 'Bm' });
+    expect(patchTitle(t, { bpm: '92' })).toEqual({ song: 'Nightfall', artist: '', tag: 'COVER', bpm: '92', key: 'Bm' });
   });
 
   it('clears a field set to empty — not the same as omitting it', () => {
-    expect(patchTitle(t, { key: '' })).toEqual({ song: 'Nightfall', tag: 'COVER', bpm: '128', key: '' });
+    expect(patchTitle(t, { key: '' })).toEqual({ song: 'Nightfall', artist: '', tag: 'COVER', bpm: '128', key: '' });
 
     expect(patchTitle(t, { tag: 'original' })).toEqual({
       song: 'Nightfall',
+      artist: '',
       tag: 'ORIGINAL',
       bpm: '128',
       key: 'Bm',
@@ -170,15 +278,16 @@ describe('commonTitle', () => {
   it('reports the shared value per field and null where they differ', () => {
     expect(
       commonTitle([
-        { song: 'Nightfall', tag: 'COVER', bpm: '128', key: 'Bm' },
-        { song: 'Daybreak', tag: 'ORIGINAL', bpm: '128', key: 'Bm' },
+        { song: 'Nightfall', artist: '', tag: 'COVER', bpm: '128', key: 'Bm' },
+        { song: 'Daybreak', artist: '', tag: 'ORIGINAL', bpm: '128', key: 'Bm' },
       ]),
-    ).toEqual({ song: null, tag: null, bpm: '128', key: 'Bm' });
+    ).toEqual({ song: null, artist: '', tag: null, bpm: '128', key: 'Bm' });
   });
 
   it('agrees with itself for one title', () => {
-    expect(commonTitle([{ song: 'Nightfall', tag: 'COVER', bpm: '128', key: 'Bm' }])).toEqual({
+    expect(commonTitle([{ song: 'Nightfall', artist: '', tag: 'COVER', bpm: '128', key: 'Bm' }])).toEqual({
       song: 'Nightfall',
+      artist: '',
       tag: 'COVER',
       bpm: '128',
       key: 'Bm',
@@ -186,14 +295,14 @@ describe('commonTitle', () => {
   });
 
   it('is all null for nothing selected', () => {
-    expect(commonTitle([])).toEqual({ song: null, tag: null, bpm: null, key: null });
+    expect(commonTitle([])).toEqual({ song: null, artist: null, tag: null, bpm: null, key: null });
   });
 
   it('treats a shared empty part as agreement, not as mixed', () => {
     expect(
       commonTitle([
-        { song: 'A', tag: '', bpm: '', key: '' },
-        { song: 'B', tag: '', bpm: '', key: '' },
+        { song: 'A', artist: '', tag: '', bpm: '', key: '' },
+        { song: 'B', artist: '', tag: '', bpm: '', key: '' },
       ]).bpm,
     ).toBe('');
   });
@@ -203,6 +312,7 @@ describe('titleOf', () => {
   it('reads the title out from under the role tag', () => {
     expect(titleOf('Nightfall 128 Bm [chorus]')).toEqual({
       song: 'Nightfall',
+      artist: '',
       tag: '',
       bpm: '128',
       key: 'Bm',
