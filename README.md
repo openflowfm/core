@@ -15,6 +15,7 @@ need, not the file.** Entries without a link are covered fully by their line her
 | [`pattern.ts`](docs/pattern.md) | token template evaluation + song-title parsing | |
 | [`trackColumns.ts`](docs/trackColumns.md) | Live's flat track list → grid columns + group color bands | |
 | [`groupSlot.ts`](docs/groupSlot.md) | what a group track's clip slot shows at one scene | |
+| [`trackStatus.ts`](docs/trackStatus.md) | the playing clip → Live's track status display: loop pie, countdown, take length | ⚠ beats vs seconds |
 | [`gridRange.ts`](docs/gridRange.md) | block selection + active-cell movement over the columns | |
 | [`ops.ts`](docs/ops.md) | building clip writes, reversing them, and applying them | the undo story |
 | [`roles.ts`](docs/roles.md) | scene roles: the `[role]` tag, and scene writes | |
@@ -32,7 +33,7 @@ need, not the file.** Entries without a link are covered fully by their line her
 | [`colorRules.ts`](docs/colorRules.md) | a color per song, from a rule over the whole set | |
 | `index.ts` | barrel | |
 
-Run with `npm test` from the repo root. 517 tests.
+Run with `npm test` from the repo root. 534 tests.
 
 ## The one rule
 
