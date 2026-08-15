@@ -667,9 +667,10 @@ export function compilePattern(
  * renamed, which is exactly how every other convention change has migrated.
  *
  * Compiled once at module scope, and shared rather than rebuilt per caller —
- * `derive()` runs both in the browser (`useSongLayout`) and in the bridge
- * (Push's song list), and two independently-built pattern lists are exactly
- * the kind of drift this project's own naming scheme is designed to avoid.
+ * `derive()` runs in the bridge (the `SetModel` it holds and ships, which is
+ * also what labels Push's encoder) and in the browser (`useSongLayout`, for the
+ * scene layer), and two independently-built pattern lists are exactly the kind
+ * of drift this project's own naming scheme is designed to avoid.
  *
  * `!` is safe here and nowhere else — every one of these patterns has a test
  * asserting it compiles.
