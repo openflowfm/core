@@ -5,23 +5,23 @@ import {
   mergeShapes,
   songRows,
 } from './songRows.js';
-import { derive, type SceneInput } from './derive.js';
-import {
-  BPM_SCENE_PATTERN,
-  compilePattern,
-  DEFAULT_SCENE_PATTERN,
-} from './namePattern.js';
+import { derive, type Derivation, type SceneInput } from './derive.js';
+import { buildSetModel } from './setModel.js';
+import { compilePattern, SCENE_PATTERNS } from './namePattern.js';
 
-const PATTERN = [
-  compilePattern(DEFAULT_SCENE_PATTERN)!,
-  compilePattern(BPM_SCENE_PATTERN)!,
-];
+/** The set's own pattern list, so this can't drift from what the app reads. */
+const PATTERN = SCENE_PATTERNS;
 const scene = (i: number, name: string, tempo = -1, colorIndex = -1): SceneInput => ({
   i,
   name,
   tempo,
   colorIndex,
 });
+
+/** The model the bridge would ship for a derivation, and the layout from it. */
+const modelOf = (d: Derivation): BSV.SetModel => buildSetModel(d, 1);
+const layoutOf = (d: Derivation, collapsed?: ReadonlySet<string>) =>
+  songRows(modelOf(d), d.scenes.map((sc) => sc.s), collapsed);
 
 /** Two songs back to back, then the first one again as a reprise. */
 const SET = derive(
@@ -38,25 +38,25 @@ const SET = derive(
 
 describe('headers', () => {
   it('puts one above the first scene of every block', () => {
-    const { headers } = songRows(SET);
+    const { headers } = layoutOf(SET);
     expect([...headers.keys()].sort((a, b) => a - b)).toEqual([0, 3, 5]);
   });
 
   it('heads a reprise too, rather than leaving it under the previous song', () => {
     // Heading only the first block would visually attach scene 5 to Glass
     // Tunnel, which is the opposite of segmenting the grid.
-    const h = songRows(SET).headers.get(5)!;
+    const h = layoutOf(SET).headers.get(5)!;
     expect(h).toMatchObject({ song: 'NIGHTFALL', block: 2, blocks: 2, from: 5, to: 5 });
   });
 
   it('numbers blocks and counts scenes per block, not per song', () => {
-    const { headers } = songRows(SET);
+    const { headers } = layoutOf(SET);
     expect(headers.get(0)).toMatchObject({ block: 1, blocks: 2, scenes: 3 });
     expect(headers.get(3)).toMatchObject({ block: 1, blocks: 1, scenes: 2 });
   });
 
   it('carries the song facts as rendered strings', () => {
-    expect(songRows(SET).headers.get(0)).toMatchObject({
+    expect(layoutOf(SET).headers.get(0)).toMatchObject({
       bpm: '128',
       key: 'Bm',
       tag: '',
@@ -73,7 +73,7 @@ describe('headers', () => {
       ],
       PATTERN,
     );
-    expect(songRows(d).headers.get(0)).toMatchObject({ tag: 'COVER', tagClash: false });
+    expect(layoutOf(d).headers.get(0)).toMatchObject({ tag: 'COVER', tagClash: false });
   });
 
   it('carries the artist, and marks a disagreement like the tag does', () => {
@@ -86,7 +86,7 @@ describe('headers', () => {
       ],
       PATTERN,
     );
-    expect(songRows(agreed).headers.get(0)).toMatchObject({
+    expect(layoutOf(agreed).headers.get(0)).toMatchObject({
       artist: 'THE AVIATORS',
       artistClash: false,
     });
@@ -98,7 +98,7 @@ describe('headers', () => {
       ],
       PATTERN,
     );
-    expect(songRows(split).headers.get(0)).toMatchObject({
+    expect(layoutOf(split).headers.get(0)).toMatchObject({
       artist: 'THE AVIATORS / SUN & STEEL',
       artistClash: true,
       clash: false,
@@ -113,7 +113,7 @@ describe('headers', () => {
       ],
       PATTERN,
     );
-    expect(songRows(d).headers.get(0)).toMatchObject({
+    expect(layoutOf(d).headers.get(0)).toMatchObject({
       tag: 'COVER / ORIGINAL',
       tagClash: true,
       clash: false,
@@ -135,9 +135,9 @@ describe('headers', () => {
       [scene(0, '[A] NIGHTFALL', 128), scene(1, '[B] NIGHTFALL', 130)],
       PATTERN,
     );
-    expect(songRows(unanimous).headers.get(0)?.bpm).toBe('128');
-    expect(songRows(partial).headers.get(0)?.bpm).toBe('128');
-    expect(songRows(mixed).headers.get(0)?.bpm).toBe('128');
+    expect(layoutOf(unanimous).headers.get(0)?.bpm).toBe('128');
+    expect(layoutOf(partial).headers.get(0)?.bpm).toBe('128');
+    expect(layoutOf(mixed).headers.get(0)?.bpm).toBe('128');
   });
 
   it('infers no bpm when the first scene follows the Live Set tempo', () => {
@@ -145,7 +145,7 @@ describe('headers', () => {
       [scene(0, '[A] NIGHTFALL'), scene(1, '[B] NIGHTFALL', 128)],
       PATTERN,
     );
-    expect(songRows(d).headers.get(0)?.bpm).toBe('');
+    expect(layoutOf(d).headers.get(0)?.bpm).toBe('');
   });
 
   it('keeps a bpm stated in the names ahead of the extracted fallback', () => {
@@ -153,7 +153,7 @@ describe('headers', () => {
       [scene(0, '[A] @126 NIGHTFALL', 128), scene(1, '[B] @126 NIGHTFALL', 128)],
       PATTERN,
     );
-    expect(songRows(d).headers.get(0)?.bpm).toBe('126');
+    expect(layoutOf(d).headers.get(0)?.bpm).toBe('126');
   });
 
   it('carries the song color when its scenes agree on one', () => {
@@ -164,7 +164,7 @@ describe('headers', () => {
       ],
       PATTERN,
     );
-    expect(songRows(d).headers.get(0)).toMatchObject({
+    expect(layoutOf(d).headers.get(0)).toMatchObject({
       colorIndex: 14,
       colorClash: false,
     });
@@ -180,14 +180,14 @@ describe('headers', () => {
       ],
       PATTERN,
     );
-    expect(songRows(d).headers.get(0)).toMatchObject({
+    expect(layoutOf(d).headers.get(0)).toMatchObject({
       colorIndex: -1,
       colorClash: true,
     });
   });
 
   it('leaves an uncolored song uncolored rather than clashing', () => {
-    expect(songRows(SET).headers.get(0)).toMatchObject({
+    expect(layoutOf(SET).headers.get(0)).toMatchObject({
       colorIndex: -1,
       colorClash: false,
     });
@@ -198,20 +198,20 @@ describe('headers', () => {
       [scene(0, '[A] @128-Bm NIGHTFALL'), scene(1, '[B] @130-Bm NIGHTFALL')],
       PATTERN,
     );
-    const h = songRows(d).headers.get(0)!;
+    const h = layoutOf(d).headers.get(0)!;
     expect(h.bpm).toBe('128 / 130');
     expect(h.clash).toBe(true);
   });
 
   it('leaves a fact the set never states empty rather than inventing one', () => {
     const d = derive([scene(0, '[INTRO] NIGHTFALL')], PATTERN);
-    expect(songRows(d).headers.get(0)).toMatchObject({ bpm: '', key: '', tempo: '' });
+    expect(layoutOf(d).headers.get(0)).toMatchObject({ bpm: '', key: '', tempo: '' });
   });
 
   it('has no header for a scene the pattern could not read', () => {
     const strict = compilePattern('{song} {bpm} {key}')!;
     const d = derive([scene(0, 'Audio 3'), scene(1, 'Nightfall 128 Bm')], strict);
-    const { headers } = songRows(d);
+    const { headers } = layoutOf(d);
     expect(headers.has(0)).toBe(false);
     expect(headers.has(1)).toBe(true);
   });
@@ -219,13 +219,13 @@ describe('headers', () => {
 
 describe('collapsing', () => {
   it('shows every scene when nothing is collapsed', () => {
-    const { hidden, rows } = songRows(SET);
+    const { hidden, rows } = layoutOf(SET);
     expect(hidden.size).toBe(0);
     expect(rows).toEqual([0, 1, 2, 3, 4, 5]);
   });
 
   it('hides a collapsed song’s scenes but keeps its header', () => {
-    const { hidden, rows, headers } = songRows(SET, new Set(['glass tunnel']));
+    const { hidden, rows, headers } = layoutOf(SET, new Set(['glass tunnel']));
     expect([...hidden].sort()).toEqual([3, 4]);
     expect(rows).toEqual([0, 1, 2, 5]);
     expect(headers.get(3)!.collapsed).toBe(true);
@@ -234,7 +234,7 @@ describe('collapsing', () => {
   it('folds every block of a song at once, and shows a header for each', () => {
     // Collapsing "Nightfall" has to take the reprise with it — folding one and
     // leaving the other is not what "collapse this song" means.
-    const { hidden, rows, headers } = songRows(SET, new Set(['nightfall']));
+    const { hidden, rows, headers } = layoutOf(SET, new Set(['nightfall']));
     expect([...hidden].sort((a, b) => a - b)).toEqual([0, 1, 2, 5]);
     expect(rows).toEqual([3, 4]);
     expect(headers.get(0)!.collapsed).toBe(true);
@@ -242,13 +242,13 @@ describe('collapsing', () => {
   });
 
   it('leaves no rows when everything is collapsed, and every header standing', () => {
-    const { rows, headers } = songRows(SET, new Set(allSongKeys(SET)));
+    const { rows, headers } = layoutOf(SET, new Set(allSongKeys(modelOf(SET))));
     expect(rows).toEqual([]);
     expect(headers.size).toBe(3);
   });
 
   it('matches the collapsed set case-insensitively, like songKey', () => {
-    expect(songRows(SET, new Set(['nightfall'])).hidden.size).toBe(4);
+    expect(layoutOf(SET, new Set(['nightfall'])).hidden.size).toBe(4);
   });
 
   it('never hides a scene the pattern could not read', () => {
@@ -256,7 +256,7 @@ describe('collapsing', () => {
     // leave it unreachable.
     const strict = compilePattern('{song} {bpm} {key}')!;
     const d = derive([scene(0, 'Nightfall 128 Bm'), scene(1, 'Audio 3')], strict);
-    const { rows } = songRows(d, new Set(allSongKeys(d)));
+    const { rows } = layoutOf(d, new Set(allSongKeys(modelOf(d))));
     expect(rows).toEqual([1]);
   });
 });
@@ -374,9 +374,10 @@ describe('blockTrackRoles', () => {
   });
 
   it('reads roles by tag, not by the pattern that named the scene', () => {
-    // The pattern reads this whole name as one long title, but the tag is
-    // visibly there and the scene row shows a chip for it.
-    expect(derive([scene(0, 'NIGHTFALL [alt mix]')], PATTERN).scenes[0]!.role).toBe(null);
+    // The premise: a pattern that reads this whole name as one long title. The
+    // tag is still visibly there and the scene row shows a chip for it.
+    const title = compilePattern('{song}')!;
+    expect(derive([scene(0, 'NIGHTFALL [alt mix]')], title).scenes[0]!.role).toBe(null);
     const shapes = blockTrackRoles(
       [{ t: 0, s: 0 }],
       [{ i: 0, name: 'NIGHTFALL [alt mix]' }],
@@ -488,10 +489,10 @@ describe('mergeShapes', () => {
 
 describe('allSongKeys', () => {
   it('is every song, deduped by the same identity songRows uses', () => {
-    expect(allSongKeys(SET)).toEqual(['nightfall', 'glass tunnel']);
+    expect(allSongKeys(modelOf(SET))).toEqual(['nightfall', 'glass tunnel']);
   });
 
   it('is empty for a set with no songs', () => {
-    expect(allSongKeys(derive([], PATTERN))).toEqual([]);
+    expect(allSongKeys(modelOf(derive([], PATTERN)))).toEqual([]);
   });
 });

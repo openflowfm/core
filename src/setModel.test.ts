@@ -48,6 +48,19 @@ describe('buildSetModel', () => {
     expect(m.songs[0]!.tempoScenes).toEqual([0, 1]);
   });
 
+  it('renders Live’s own scene tempos separately from the stated bpm', () => {
+    // `bpm` is what the names say; `tempo` is what Live will do. One song can
+    // state both and they can disagree, so neither stands in for the other.
+    const agreed = model([scene(0, 'NIGHTFALL', 128), scene(1, 'NIGHTFALL', 128)]);
+    expect(agreed.songs[0]).toMatchObject({ tempo: '128', tempoClash: false });
+
+    const split = model([scene(0, 'NIGHTFALL', 128), scene(1, 'NIGHTFALL', 130)]);
+    expect(split.songs[0]).toMatchObject({ tempo: '128 / 130', tempoClash: true });
+
+    const none = model([scene(0, 'NIGHTFALL'), scene(1, 'NIGHTFALL')]);
+    expect(none.songs[0]).toMatchObject({ tempo: '', tempoClash: false });
+  });
+
   it('separates an uncolored song from one colored inconsistently', () => {
     const none = model([scene(0, 'NIGHTFALL'), scene(1, 'NIGHTFALL')]);
     expect(none.songs[0]).toMatchObject({ colorIndex: -1, colorClash: false });

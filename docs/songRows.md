@@ -10,6 +10,16 @@ the grid. **Collapsing, though, is keyed by song**: folding "Nightfall" folds al
 reprise included. Two blocks then show two headers, which is honest, because the set
 really does contain that song twice.
 
+`songRows` takes a **`SetModel`** — the songs as the bridge read them, facts already
+rendered — plus the set's scene indexes. It reads no name and compiles no pattern; the
+mapping is read once, in the bridge, for Push and every browser tab together
+([`setModel.md`](setModel.md)). The scene indexes are separate because a scene belonging
+to no song is still a row you can select and name, and the model answers about songs.
+
+`blockTrackRoles` below it is the deliberate exception: it reads the **clips**, which is
+exactly why it isn't in the model and stays in the browser. Folding it in would make every
+clip edit anywhere in the set rebuild the whole song list.
+
 `blockTrackRoles` answers the other half of what a folded song shows: per block, per
 track, **which sections of the song that track plays**. Not that the sparkle pad is used
 — that it's used in the choruses. "Which tracks does this song use" was the first
@@ -43,7 +53,9 @@ Every field on `SongHeader` is a primitive, including the facts, which arrive as
 strings (`128`, or `128 / 130` when the scenes disagree) rather than as the observed
 arrays. That's the same constraint `marksByScene` obeys: the header crosses into a
 memoized React row, and an object or array prop would re-render every header in the set
-on each change.
+on each change. `SongEntry` obeys it for the same reason, which is what lets a header be
+copied straight out of one; `showFact` is the single spelling of a disagreement, exported
+so the model renders it the same way rather than nearly the same way.
 
 An unmapped scene belongs to no song, so nothing can fold it away and leave it
 unreachable — there's a test for exactly that.

@@ -11,8 +11,12 @@
 // Collapsing, though, is keyed by **song**: folding "Nightfall" folds all of it,
 // including a reprise sixty scenes later. Two blocks then show two headers,
 // which is honest — the set really does contain that song twice.
+//
+// `songRows` lays out a `SetModel` — the songs as the bridge read them, facts
+// already rendered. `blockTrackRoles` below reads the clips instead, which is
+// exactly why it is not in the model; see `core/docs/setModel.md`.
 
-import { songKey, type Derivation, type DerivedSong, type SongBlock } from './derive.js';
+import type { DerivedSong, SongBlock } from './derive.js';
 import { roleIn, roleKey } from './roles.js';
 
 /**
@@ -72,8 +76,13 @@ export interface SongRows {
   rows: number[];
 }
 
-/** `''`, the value, or every value when the song's scenes disagree. */
-function show(values: readonly (string | number)[]): string {
+/**
+ * `''`, the value, or every value when the song's scenes disagree.
+ *
+ * Exported because `setModel` renders the same facts into `SongEntry` and two
+ * spellings of one disagreement is the drift the model exists to remove.
+ */
+export function showFact(values: readonly (string | number)[]): string {
   return values.length === 0 ? '' : values.join(' / ');
 }
 
@@ -96,57 +105,62 @@ export function songFacts(
     // describes a change partway through, not what the song is.
     bpm:
       song.observed.bpm.length > 0
-        ? show(song.observed.bpm)
+        ? showFact(song.observed.bpm)
         : song.firstSceneTempo === null
           ? ''
           : String(song.firstSceneTempo),
-    key: show(song.observed.key),
-    artist: show(song.observed.artist),
-    tag: show(song.observed.tag),
+    key: showFact(song.observed.key),
+    artist: showFact(song.observed.artist),
+    tag: showFact(song.observed.tag),
   };
 }
 
+/**
+ * Where the song headers go, and what a collapsed song hides.
+ *
+ * **Takes the `SetModel`, not a `Derivation`** — the set as the bridge read it,
+ * with every fact already rendered. Reading the names is done once, in the
+ * bridge, for Push and every browser tab at the same time; see
+ * [`setModel.md`](../docs/setModel.md). `SongEntry` carries what a header shows,
+ * so this is layout arithmetic and nothing else.
+ *
+ * `scenes` is the set's scene indexes — every row, collapsed or not. It comes
+ * from the snapshot rather than the model because the model describes songs, and
+ * a scene belonging to no song is still a row you can select and name.
+ */
 export function songRows(
-  derivation: Derivation,
+  model: BSV.SetModel,
+  scenes: readonly number[],
   collapsed: ReadonlySet<string> = new Set(),
 ): SongRows {
   const headers = new Map<number, SongHeader>();
   const hidden = new Set<number>();
 
-  for (const song of derivation.songs) {
-    const key = songKey(song.name);
-    const isCollapsed = collapsed.has(key);
-    const clash =
-      song.observed.bpm.length > 1 ||
-      song.observed.key.length > 1 ||
-      song.observed.tempo.length > 1;
-    const artistClash = song.observed.artist.length > 1;
-    const tagClash = song.observed.tag.length > 1;
+  for (const song of model.songs) {
+    const isCollapsed = collapsed.has(song.songKey);
     // Color is kept out of `clash` on purpose: that one annotates the facts
     // strip, and a color disagreement is shown by the header's own band.
-    const colorClash = song.observed.colorIndex.length > 1;
-    const colorIndex = colorClash ? -1 : (song.observed.colorIndex[0] ?? -1);
-    const facts = songFacts(song);
+    const clash = song.bpmClash || song.keyClash || song.tempoClash;
 
     song.blocks.forEach((block, i) => {
       headers.set(block.from, {
-        songKey: key,
+        songKey: song.songKey,
         song: song.name,
         from: block.from,
         to: block.to,
         scenes: block.to - block.from + 1,
         block: i + 1,
         blocks: song.blocks.length,
-        bpm: facts.bpm,
-        key: facts.key,
-        artist: facts.artist,
-        artistClash,
-        tag: facts.tag,
-        tagClash,
-        tempo: show(song.observed.tempo),
+        bpm: song.bpm,
+        key: song.key,
+        artist: song.artist,
+        artistClash: song.artistClash,
+        tag: song.tag,
+        tagClash: song.tagClash,
+        tempo: song.tempo,
         clash,
-        colorIndex,
-        colorClash,
+        colorIndex: song.colorIndex,
+        colorClash: song.colorClash,
         collapsed: isCollapsed,
       });
     });
@@ -154,9 +168,9 @@ export function songRows(
     if (isCollapsed) for (const s of song.scenes) hidden.add(s);
   }
 
-  // Walk the derivation's own scene list rather than 0..sceneCount so the row
-  // order can't disagree with what the grid renders.
-  const rows = derivation.scenes.map((sc) => sc.s).filter((s) => !hidden.has(s));
+  // Ascending, whatever order the rows arrived in, so the row order can't
+  // disagree with what the grid renders.
+  const rows = [...scenes].sort((a, b) => a - b).filter((s) => !hidden.has(s));
 
   return { headers, hidden, rows };
 }
@@ -365,6 +379,6 @@ export function mergeShapes(shapes: Iterable<TrackShape>): TrackShape {
 }
 
 /** Every song key in the set — what "collapse all" needs. */
-export function allSongKeys(derivation: Derivation): string[] {
-  return derivation.songs.map((s) => songKey(s.name));
+export function allSongKeys(model: BSV.SetModel): string[] {
+  return model.songs.map((s) => s.songKey);
 }

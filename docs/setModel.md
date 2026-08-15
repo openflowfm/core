@@ -16,9 +16,27 @@ The bridge owns the answer now and ships it; a client holds a `SetModel` and nev
 `derive()` at all.
 
 The second reason is the walk. A client that has to derive the mapping needs the scene
-rows, which means it needs a snapshot, which meant a full LOM walk on every join. Once the
-bridge holds both the snapshot and the model, a joining client is a payload rather than a
-walk of every clip slot in the set.
+rows, which means it needs a snapshot, which meant a full LOM walk on every join. The
+bridge now holds both the snapshot and the model and keeps them current, so a joining
+client is a payload rather than a walk of every clip slot in the set — see
+[`bridge/docs/multiple-clients.md`](../../bridge/docs/multiple-clients.md).
+
+## Who builds one
+
+| | |
+|---|---|
+| `bridge.ts`, after a walk | the answer everyone else is given |
+| `bridge.ts`, after a `sceneRows` delta or an `apply` carrying `sceneOps` | keeps the held one current, and relabels Push |
+| `useBridge`'s `reconcile`, after a scene write | the client patched its own copy optimistically, and a header has to match the row under it |
+
+That last one is the only place a client builds a model, and it is not a hole in the rule.
+The bridge's model describes what Live has confirmed; that one describes an edit the client
+has only just made and not yet heard back about. Same function, same patterns, and the next
+snapshot or scene delta replaces it with an identical answer from the bridge.
+
+Nothing in the browser reads scene names to draw a **song**. `useSongLayout` still derives
+for its `derivation`, which is the *scene* layer — every scene's parsed fields, for the
+scene-level modals — and that is the boundary below.
 
 ## The scope boundary is load-bearing
 
@@ -39,6 +57,18 @@ it doesn't belong here.
 the same reason: they cross into a memoized React row, and an array prop re-renders every
 header in the set on each change. The `…Clash` booleans are what a renderer branches on
 instead of inspecting the string.
+
+`SongHeader` is now built **from** a `SongEntry` — `songRows` takes the model — so the two
+are one set of fields rendered once rather than twice from the same derivation. That is
+why `tempo` and `tempoClash` are here: they are what the header's facts strip branches on,
+they are a function of `Scene.tempo`, and a second rendering of them was the last thing
+standing between the header and the model. `bpm` is what the *names* say and `tempo` is
+what Live will do; they are the same fact from two sources and the set can disagree with
+itself about them, so neither stands in for the other.
+
+`songRows` also takes the set's scene indexes, which the model deliberately doesn't carry:
+a scene belonging to no song is still a row you can select and name, and the model answers
+about songs.
 
 `songByScene` is a `Record<string, string>` rather than a `Map` because the model crosses
 the wire as JSON, and a `Map` does not survive `JSON.stringify` — it arrives as `{}`,
