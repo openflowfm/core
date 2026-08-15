@@ -24,6 +24,7 @@ need, not the file.** Entries without a link are covered fully by their line her
 | [`defaultArtist.ts`](docs/defaultArtist.md) | safely fill blank artist facts across a set | |
 | [`namePattern.ts`](docs/namePattern.md) | patterns that can be read back: format, parse, validate | the keystone of the scheme |
 | [`derive.ts`](docs/derive.md) | the set → the mapping, by reversing the pattern | |
+| [`setModel.ts`](docs/setModel.md) | the mapping → the shape everything consumes, derived once | the bridge holds it |
 | [`songRows.ts`](docs/songRows.md) | songs → grid rows + song headers, and what folding hides | |
 | [`sceneMove.ts`](docs/sceneMove.md) | reordering scenes: the index arithmetic, so it's testable | ⚠ **can destroy work** |
 | [`clipMove.ts`](docs/clipMove.md) | dragging clips: the copy order, so nothing is clobbered | |

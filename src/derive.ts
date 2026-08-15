@@ -76,14 +76,27 @@ export interface DerivedSong {
    */
   blocks: SongBlock[];
   /**
-   * A BPM read from Live's `Scene.tempo`, but only when every scene carrying
-   * this song has an explicit tempo and every one is identical. `null` means
-   * at least one scene follows the Live Set tempo or the scenes disagree.
+   * `Scene.tempo` on the song's **first** scene, or `null` when it has none.
    *
-   * Kept separate from `observed.bpm`: that array is what the names state,
-   * while this is a safe fallback extracted from the LOM.
+   * The one scene the app projects a bpm onto, and the reason it is one rather
+   * than all of them: a scene with its tempo enabled changes the song tempo the
+   * moment it fires, so a song whose every scene carries its bpm can only be
+   * entered at that bpm. Mixing into the second chorus of a 128 song while the
+   * set runs at 124 has to be possible, and it is exactly what the every-scene
+   * convention made impossible.
+   *
+   * Kept separate from `observed.bpm`: that array is what the names state, and
+   * **the name is the record**. This is what Live will actually do.
    */
-  extractedBpm: number | null;
+  firstSceneTempo: number | null;
+  /**
+   * Every scene of this song carrying its own `Scene.tempo`, ascending.
+   *
+   * Under the current convention this holds at most the song's first scene.
+   * More than one means the song was written by the every-scene convention that
+   * preceded it, and this is the list the clear-stray-tempos action reads.
+   */
+  tempoScenes: number[];
   /**
    * What the *set* says this song is: the distinct values found, in order of
    * first appearance. One entry means the scenes agree; more than one is a
@@ -245,7 +258,8 @@ export function derive(
         name: song,
         scenes: [],
         blocks: [],
-        extractedBpm: null,
+        firstSceneTempo: null,
+        tempoScenes: [],
         observed: { bpm: [], key: [], artist: [], tag: [], tempo: [], colorIndex: [] },
       };
       bySong.set(key, entry);
@@ -267,11 +281,9 @@ export function derive(
   const derivedByScene = new Map(derived.map((sc) => [sc.s, sc]));
   for (const s of songs) {
     s.blocks = blocksOf(s.scenes);
-    const first = derivedByScene.get(s.scenes[0]!)?.tempo ?? null;
-    s.extractedBpm =
-      first !== null && s.scenes.every((scene) => derivedByScene.get(scene)?.tempo === first)
-        ? first
-        : null;
+    // `s.scenes` is already ascending — it is filled in the ordered walk above.
+    s.tempoScenes = s.scenes.filter((scene) => derivedByScene.get(scene)?.tempo !== null);
+    s.firstSceneTempo = derivedByScene.get(s.scenes[0]!)?.tempo ?? null;
   }
 
   return { scenes: derived, songs, unmapped };

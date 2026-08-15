@@ -120,25 +120,32 @@ describe('headers', () => {
     });
   });
 
-  it('uses a unanimous explicit scene tempo when the names omit bpm', () => {
-    const d = derive(
+  it('uses the first scene’s explicit tempo when the names omit bpm', () => {
+    const unanimous = derive(
       [scene(0, '[A] NIGHTFALL', 128), scene(1, '[B] NIGHTFALL', 128)],
       PATTERN,
     );
-    expect(songRows(d).headers.get(0)?.bpm).toBe('128');
-  });
-
-  it('does not infer bpm from only some scenes or from differing tempos', () => {
     const partial = derive(
       [scene(0, '[A] NIGHTFALL', 128), scene(1, '[B] NIGHTFALL')],
       PATTERN,
     );
+    // A song that speeds up is a song. The header answers what it is entered
+    // at, which is the first scene's tempo in all three of these.
     const mixed = derive(
       [scene(0, '[A] NIGHTFALL', 128), scene(1, '[B] NIGHTFALL', 130)],
       PATTERN,
     );
-    expect(songRows(partial).headers.get(0)?.bpm).toBe('');
-    expect(songRows(mixed).headers.get(0)?.bpm).toBe('');
+    expect(songRows(unanimous).headers.get(0)?.bpm).toBe('128');
+    expect(songRows(partial).headers.get(0)?.bpm).toBe('128');
+    expect(songRows(mixed).headers.get(0)?.bpm).toBe('128');
+  });
+
+  it('infers no bpm when the first scene follows the Live Set tempo', () => {
+    const d = derive(
+      [scene(0, '[A] NIGHTFALL'), scene(1, '[B] NIGHTFALL', 128)],
+      PATTERN,
+    );
+    expect(songRows(d).headers.get(0)?.bpm).toBe('');
   });
 
   it('keeps a bpm stated in the names ahead of the extracted fallback', () => {

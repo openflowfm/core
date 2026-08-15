@@ -89,15 +89,17 @@ export function songFacts(
   song: DerivedSong,
 ): { bpm: string; key: string; artist: string; tag: string } {
   return {
-    // Names remain the durable source of truth. When they don't state a BPM,
-    // Live's scene tempos can supply it only under derive's strict all-scenes
-    // agreement rule — partial tempo automation must not become a song fact.
+    // Names are the durable source of truth. When they don't state a BPM, the
+    // song's first scene can supply it — that's the one scene the app projects
+    // a tempo onto, and on a set still written the old way it's also the tempo
+    // the song is entered at. A later scene's tempo is never a song fact: it
+    // describes a change partway through, not what the song is.
     bpm:
       song.observed.bpm.length > 0
         ? show(song.observed.bpm)
-        : song.extractedBpm === null
+        : song.firstSceneTempo === null
           ? ''
-          : String(song.extractedBpm),
+          : String(song.firstSceneTempo),
     key: show(song.observed.key),
     artist: show(song.observed.artist),
     tag: show(song.observed.tag),

@@ -15,11 +15,19 @@ answer. One entry means the scenes agree; more than one is a disagreement for th
 to arbitrate. Collapsing them to "the first one" would hide exactly the drift this exists
 to surface, which is why the songs table renders a clash in amber rather than picking.
 
-`extractedBpm` is deliberately stricter than `observed.tempo`. It exists only when
-**every scene carrying the song has its own `Scene.tempo`, and all of those tempos are
-identical**. A single scene that follows the Live Set tempo makes the answer unknown, as
-does a differing reprise. Song headers use this as a read-only fallback when the names do
-not already state `{bpm}`; taking a snapshot never renames a scene.
+`firstSceneTempo` is `Scene.tempo` on the song's **first** scene and nothing else, and
+that narrowness is the point. A scene with its tempo enabled changes the song tempo the
+moment it fires, so a song whose every scene carries its bpm can only ever be *entered*
+at that bpm — mixing into its second chorus while the set runs slower is impossible. One
+scene carries it, the rest follow whatever is already running. Song headers use it as a
+read-only fallback when the names don't state `{bpm}`; taking a snapshot never renames a
+scene.
+
+`tempoScenes` lists every scene of the song that has a tempo of its own. Under the
+current convention that's at most the first one; a longer list is a song written by the
+every-scene convention that preceded it, and it's what the clear-stray-tempos action
+reads. The two fields together are why a song that speeds up is no longer treated as a
+data error: `firstSceneTempo` says what it starts at, and `tempoScenes` says it changes.
 
 **`observed.colorIndex` breaks the omission rule the other facts follow, deliberately.**
 A scene that simply doesn't state its key is incomplete rather than contradictory, so

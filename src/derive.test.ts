@@ -188,32 +188,38 @@ describe('scene tempo', () => {
     expect(derive([scene(0, 'A', MIN_TEMPO)], PATTERN).scenes[0]!.tempo).toBe(MIN_TEMPO);
   });
 
-  it('extracts a bpm when every scene of a song has the same explicit tempo', () => {
-    const d = derive(
-      [scene(0, 'Nightfall [intro]', 128), scene(1, 'Nightfall [verse]', 128)],
-      PATTERN,
-    );
-    expect(d.songs[0]!.extractedBpm).toBe(128);
-  });
-
-  it('does not extract a bpm when even one scene follows the Live Set tempo', () => {
+  it('reads the song’s tempo off its first scene', () => {
     const d = derive(
       [scene(0, 'Nightfall [intro]', 128), scene(1, 'Nightfall [verse]')],
       PATTERN,
     );
-    expect(d.songs[0]!.observed.tempo).toEqual([128]);
-    expect(d.songs[0]!.extractedBpm).toBeNull();
+    expect(d.songs[0]!.firstSceneTempo).toBe(128);
+    expect(d.songs[0]!.tempoScenes).toEqual([0]);
   });
 
-  it('does not extract a bpm when the scenes disagree', () => {
+  it('has no tempo when the first scene follows the Live Set', () => {
+    const d = derive(
+      [scene(0, 'Nightfall [intro]'), scene(1, 'Nightfall [verse]', 128)],
+      PATTERN,
+    );
+    expect(d.songs[0]!.firstSceneTempo).toBeNull();
+    // The later scene still reports, because clearing it is an action the app
+    // offers and it needs to know the scene is there.
+    expect(d.songs[0]!.tempoScenes).toEqual([1]);
+  });
+
+  it('keeps the first scene’s tempo when a later one disagrees', () => {
     const d = derive(
       [scene(0, 'Nightfall [intro]', 128), scene(1, 'Nightfall [verse]', 130)],
       PATTERN,
     );
-    expect(d.songs[0]!.extractedBpm).toBeNull();
+    // A song that speeds up is a song, not a data error — the answer is what
+    // the song is entered at, and `tempoScenes` is what says it changes.
+    expect(d.songs[0]!.firstSceneTempo).toBe(128);
+    expect(d.songs[0]!.tempoScenes).toEqual([0, 1]);
   });
 
-  it('includes every reprise when deciding whether the tempo is shared', () => {
+  it('takes the first scene of the first block, reprises included', () => {
     const d = derive(
       [
         scene(0, 'Nightfall [intro]', 128),
@@ -223,7 +229,8 @@ describe('scene tempo', () => {
       PATTERN,
     );
     expect(d.songs[0]!.blocks).toHaveLength(2);
-    expect(d.songs[0]!.extractedBpm).toBeNull();
+    expect(d.songs[0]!.firstSceneTempo).toBe(128);
+    expect(d.songs[0]!.tempoScenes).toEqual([0, 2]);
   });
 });
 
