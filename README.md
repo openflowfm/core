@@ -29,12 +29,12 @@ need, not the file.** Entries without a link are covered fully by their line her
 | [`sceneMove.ts`](docs/sceneMove.md) | reordering scenes: the index arithmetic, so it's testable | ⚠ **can destroy work** |
 | [`clipMove.ts`](docs/clipMove.md) | dragging clips: the copy order, so nothing is clobbered | |
 | [`snapshotDelta.ts`](docs/snapshotDelta.md) | merging a partial re-read back in — clips by scope, rows by index | |
-| `backstop.ts` | when the client should re-walk the set on its own initiative | ⚠ no doc; `shouldWalk` is cited from `ui/docs/snapshot-lifecycle.md` |
+| `backstop.ts` | when the **bridge** should re-walk the set on its own initiative | ⚠ no doc; `shouldWalk` is cited from `bridge/docs/multiple-clients.md` |
 | [`songOrder.ts`](docs/songOrder.md) | a running order of songs → the order the scenes go in | |
 | [`colorRules.ts`](docs/colorRules.md) | a color per song, from a rule over the whole set | |
 | `index.ts` | barrel | |
 
-Run with `npm test` from the repo root. 534 tests.
+Run with `npm test` from the repo root. 588 tests.
 
 ## The one rule
 
