@@ -59,12 +59,17 @@ header in the set on each change. The `…Clash` booleans are what a renderer br
 instead of inspecting the string.
 
 `SongHeader` is now built **from** a `SongEntry` — `songRows` takes the model — so the two
-are one set of fields rendered once rather than twice from the same derivation. That is
-why `tempo` and `tempoClash` are here: they are what the header's facts strip branches on,
-they are a function of `Scene.tempo`, and a second rendering of them was the last thing
-standing between the header and the model. `bpm` is what the *names* say and `tempo` is
-what Live will do; they are the same fact from two sources and the set can disagree with
-itself about them, so neither stands in for the other.
+are one set of fields rendered once rather than twice from the same derivation.
+
+**There is deliberately no rendered `tempo` string beside `bpm`.** The obvious symmetry —
+`bpm` is what the names say, `tempo` is what Live will do, render both the same way — is
+wrong under this convention, and it was briefly built. Collapsing a song's scene tempos to
+`128 / 130` says two scenes disagree and stops there; but only the *first* scene carries a
+tempo now, and a song whose scenes genuinely state different ones is a song that speeds
+up, not a set that is wrong about itself. The two useful questions are what the song is
+entered at and which scenes move it, and `firstSceneTempo` and `tempoScenes` answer both.
+`clash` is bpm and key only, for the same reason: it paints the facts strip, and the strip
+renders those two.
 
 `songRows` also takes the set's scene indexes, which the model deliberately doesn't carry:
 a scene belonging to no song is still a row you can select and name, and the model answers

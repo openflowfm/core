@@ -41,12 +41,10 @@ export function buildSetModel(d: Derivation, rev: number): BSV.SetModel {
       key: facts.key,
       artist: facts.artist,
       tag: facts.tag,
-      tempo: showFact(song.observed.tempo),
       bpmClash: song.observed.bpm.length > 1,
       keyClash: song.observed.key.length > 1,
       artistClash: song.observed.artist.length > 1,
       tagClash: song.observed.tag.length > 1,
-      tempoClash: song.observed.tempo.length > 1,
       // A song is one color, so a header showing the first scene's while the
       // rest of the block disagrees would be a confident lie. -1 covers both
       // "no color" and "more than one"; `colorClash` is what separates them.

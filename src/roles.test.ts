@@ -5,6 +5,7 @@ import {
   findRoleProblems,
   inverseSceneOps,
   isValidRoleName,
+  mergeSceneOps,
   mergeVocabulary,
   nameWithoutRole,
   roleIn,
@@ -465,6 +466,54 @@ describe('songTempoOps', () => {
 
   it('is empty for a song with no scenes', () => {
     expect(songTempoOps(EVERY_SCENE, { scenes: [], tempoScenes: [] }, 128)).toEqual([]);
+  });
+});
+
+describe('mergeSceneOps', () => {
+  it('folds a tempo onto a rename of the same scene', () => {
+    // The case it exists for: with `writeSceneTempo` on, both land on the
+    // song's first scene. Two ops there is two writes and a two-step undo.
+    expect(
+      mergeSceneOps([{ s: 0, name: '@128-Bm NIGHTFALL' }], [{ s: 0, tempo: 128 }]),
+    ).toEqual([{ s: 0, name: '@128-Bm NIGHTFALL', tempo: 128 }]);
+  });
+
+  it('leaves fields the other list never mentioned alone', () => {
+    expect(mergeSceneOps([{ s: 0, name: 'A', colorIndex: 3, color: 9 }], [{ s: 0, tempo: 128 }]))
+      .toEqual([{ s: 0, name: 'A', colorIndex: 3, color: 9, tempo: 128 }]);
+  });
+
+  it('lets the later list win a field both state', () => {
+    expect(mergeSceneOps([{ s: 0, name: 'A' }], [{ s: 0, name: 'B' }])).toEqual([
+      { s: 0, name: 'B' },
+    ]);
+  });
+
+  it('appends scenes only the second list touches, keeping the first’s order', () => {
+    // `songTempoOps` writes before it clears, and that ordering has to survive.
+    expect(
+      mergeSceneOps(
+        [{ s: 5, name: 'A' }, { s: 0, name: 'B' }],
+        [{ s: 0, tempo: 128 }, { s: 2, tempo: -1 }],
+      ),
+    ).toEqual([
+      { s: 5, name: 'A' },
+      { s: 0, name: 'B', tempo: 128 },
+      { s: 2, tempo: -1 },
+    ]);
+  });
+
+  it('copies rather than mutating either input', () => {
+    const first = [{ s: 0, name: 'A' }];
+    const second = [{ s: 0, tempo: 128 }];
+    mergeSceneOps(first, second);
+    expect(first).toEqual([{ s: 0, name: 'A' }]);
+    expect(second).toEqual([{ s: 0, tempo: 128 }]);
+  });
+
+  it('is the identity when either side is empty', () => {
+    expect(mergeSceneOps([{ s: 0, name: 'A' }], [])).toEqual([{ s: 0, name: 'A' }]);
+    expect(mergeSceneOps([], [{ s: 0, tempo: 128 }])).toEqual([{ s: 0, tempo: 128 }]);
   });
 });
 

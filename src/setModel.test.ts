@@ -48,17 +48,28 @@ describe('buildSetModel', () => {
     expect(m.songs[0]!.tempoScenes).toEqual([0, 1]);
   });
 
-  it('renders Live’s own scene tempos separately from the stated bpm', () => {
-    // `bpm` is what the names say; `tempo` is what Live will do. One song can
-    // state both and they can disagree, so neither stands in for the other.
-    const agreed = model([scene(0, 'NIGHTFALL', 128), scene(1, 'NIGHTFALL', 128)]);
-    expect(agreed.songs[0]).toMatchObject({ tempo: '128', tempoClash: false });
-
+  it('answers a song that speeds up with where it starts and what changes it', () => {
+    // Not `128 / 130`. Two scenes stating different tempos is the normal shape
+    // of a song that speeds up, and collapsing it to a disagreement says the
+    // set is wrong about something it is right about. The useful answers are
+    // what the song is entered at and which scenes move it.
     const split = model([scene(0, 'NIGHTFALL', 128), scene(1, 'NIGHTFALL', 130)]);
-    expect(split.songs[0]).toMatchObject({ tempo: '128 / 130', tempoClash: true });
+    expect(split.songs[0]).toMatchObject({
+      firstSceneTempo: 128,
+      tempoScenes: [0, 1],
+      bpm: '128',
+      bpmClash: false,
+    });
 
     const none = model([scene(0, 'NIGHTFALL'), scene(1, 'NIGHTFALL')]);
-    expect(none.songs[0]).toMatchObject({ tempo: '', tempoClash: false });
+    expect(none.songs[0]).toMatchObject({ firstSceneTempo: null, tempoScenes: [] });
+  });
+
+  it('keeps a name-stated bpm apart from what Live will actually do', () => {
+    // The set can disagree with itself: the name says 126 and the scene tempo
+    // says 128. `bpm` reports the name, because the name is the record.
+    const m = model([scene(0, '@126 NIGHTFALL', 128)]);
+    expect(m.songs[0]).toMatchObject({ bpm: '126', firstSceneTempo: 128 });
   });
 
   it('separates an uncolored song from one colored inconsistently', () => {

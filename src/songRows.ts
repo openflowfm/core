@@ -49,8 +49,18 @@ export interface SongHeader {
   tag: string;
   /** True when the song's scenes carry more than one tag. */
   tagClash: boolean;
-  tempo: string;
-  /** True when any rendered fact above is a disagreement rather than a value. */
+  /**
+   * True when `bpm` or `key` is a disagreement rather than a value — the two
+   * facts the strip actually renders, and nothing else.
+   *
+   * **`Scene.tempo` is deliberately not in here.** Scenes of one song are
+   * allowed to state different tempos: a song that speeds up is a song, not a
+   * data error, and under the current convention only its first scene carries a
+   * tempo at all. Folding that in painted the bpm/key strip amber over a
+   * disagreement the strip doesn't show. `SongEntry.firstSceneTempo` and
+   * `tempoScenes` are where that fact lives, and the songs list is what reads
+   * them.
+   */
   clash: boolean;
   /**
    * The palette slot the whole song carries, or -1 when it has none *or* when
@@ -139,8 +149,9 @@ export function songRows(
   for (const song of model.songs) {
     const isCollapsed = collapsed.has(song.songKey);
     // Color is kept out of `clash` on purpose: that one annotates the facts
-    // strip, and a color disagreement is shown by the header's own band.
-    const clash = song.bpmClash || song.keyClash || song.tempoClash;
+    // strip, and a color disagreement is shown by the header's own band. So is
+    // tempo, for the reason on `clash` above.
+    const clash = song.bpmClash || song.keyClash;
 
     song.blocks.forEach((block, i) => {
       headers.set(block.from, {
@@ -157,7 +168,6 @@ export function songRows(
         artistClash: song.artistClash,
         tag: song.tag,
         tagClash: song.tagClash,
-        tempo: song.tempo,
         clash,
         colorIndex: song.colorIndex,
         colorClash: song.colorClash,

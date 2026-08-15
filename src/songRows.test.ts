@@ -60,7 +60,6 @@ describe('headers', () => {
       bpm: '128',
       key: 'Bm',
       tag: '',
-      tempo: '',
       clash: false,
     });
   });
@@ -205,7 +204,18 @@ describe('headers', () => {
 
   it('leaves a fact the set never states empty rather than inventing one', () => {
     const d = derive([scene(0, '[INTRO] NIGHTFALL')], PATTERN);
-    expect(layoutOf(d).headers.get(0)).toMatchObject({ bpm: '', key: '', tempo: '' });
+    expect(layoutOf(d).headers.get(0)).toMatchObject({ bpm: '', key: '' });
+  });
+
+  it('does not flag the facts strip over a tempo it does not show', () => {
+    // Scenes of one song may state different tempos — a song that speeds up.
+    // The strip renders bpm and key, both of which agree here, so painting it
+    // amber would point at a disagreement that isn't on screen.
+    const d = derive(
+      [scene(0, '[A] @128-Bm NIGHTFALL', 128), scene(1, '[B] @128-Bm NIGHTFALL', 130)],
+      PATTERN,
+    );
+    expect(layoutOf(d).headers.get(0)).toMatchObject({ bpm: '128', clash: false });
   });
 
   it('has no header for a scene the pattern could not read', () => {

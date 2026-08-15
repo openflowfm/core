@@ -433,6 +433,38 @@ export function songTempoOps(
 }
 
 /**
+ * Two op lists as one, with at most one op per scene.
+ *
+ * For the set that has opted into `writeSceneTempo`, where a rename and the
+ * tempo projection it triggers both land on the song's first scene. Sent as two
+ * ops that scene is written twice, undone in two steps, and counted twice
+ * against `applied === total` — the check that decides whether a client may
+ * trust its own patched snapshot.
+ *
+ * **Later wins per field, and only per field.** A tempo op merged onto a rename
+ * changes the tempo and leaves the name alone; neither list has to know the
+ * other exists. Order is the first list's, with anything new appended, so the
+ * batch stays in scene order and `songTempoOps`' write-before-clear survives.
+ */
+export function mergeSceneOps(
+  first: readonly SceneWriteOp[],
+  second: readonly SceneWriteOp[],
+): SceneWriteOp[] {
+  const out: SceneWriteOp[] = first.map((op) => ({ ...op }));
+  const at = new Map(out.map((op, i) => [op.s, i]));
+  for (const op of second) {
+    const i = at.get(op.s);
+    if (i === undefined) {
+      at.set(op.s, out.length);
+      out.push({ ...op });
+    } else {
+      out[i] = { ...out[i]!, ...op };
+    }
+  }
+  return out;
+}
+
+/**
  * Ops that put back whatever `ops` is about to overwrite, with the same three
  * exclusions as `inverseOps` — an unknown scene, a field the op never wrote,
  * and a write that changes nothing — plus one that's specific to scenes.
