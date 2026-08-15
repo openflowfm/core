@@ -15,6 +15,7 @@ import {
   sceneColorOps,
   sceneFields,
   sharedRole,
+  songTempoOps,
   tempoOps,
   withRole,
   type Role,
@@ -397,6 +398,73 @@ describe('tempoOps', () => {
 
   it('skips scenes it has no "before" for', () => {
     expect(tempoOps(BEFORE, [99], 130)).toEqual([]);
+  });
+});
+
+describe('songTempoOps', () => {
+  /** A song written the every-scene way: all three scenes carry 128. */
+  const EVERY_SCENE: SceneFields[] = [
+    { s: 0, name: '@128-Bm NIGHTFALL', colorIndex: -1, color: 0, tempo: 128 },
+    { s: 1, name: '[VERSE] @128-Bm NIGHTFALL', colorIndex: -1, color: 0, tempo: 128 },
+    { s: 2, name: '[CHORUS] @128-Bm NIGHTFALL', colorIndex: -1, color: 0, tempo: 128 },
+  ];
+  const SONG = { scenes: [0, 1, 2], tempoScenes: [0, 1, 2] };
+
+  it('writes the first scene and clears the rest — the migration, in one action', () => {
+    expect(songTempoOps(EVERY_SCENE, SONG, 128)).toEqual([
+      { s: 1, tempo: -1 },
+      { s: 2, tempo: -1 },
+    ]);
+  });
+
+  it('writes the first scene when it is the one that has no tempo', () => {
+    const only = [{ ...EVERY_SCENE[0]!, tempo: -1 }, EVERY_SCENE[1]!, EVERY_SCENE[2]!];
+    expect(songTempoOps(only, { scenes: [0, 1, 2], tempoScenes: [1, 2] }, 128)).toEqual([
+      { s: 0, tempo: 128 },
+      { s: 1, tempo: -1 },
+      { s: 2, tempo: -1 },
+    ]);
+  });
+
+  it('sets the tempo before it clears the strays', () => {
+    // A run that fails partway leaves the song still enterable at its own
+    // tempo, which is the direction worth failing in.
+    const ops = songTempoOps(
+      [{ ...EVERY_SCENE[0]!, tempo: -1 }, EVERY_SCENE[1]!],
+      { scenes: [0, 1], tempoScenes: [1] },
+      130,
+    );
+    expect(ops[0]).toEqual({ s: 0, tempo: 130 });
+  });
+
+  it('is empty for a song already projected', () => {
+    const done = [EVERY_SCENE[0]!, { ...EVERY_SCENE[1]!, tempo: -1 }];
+    expect(songTempoOps(done, { scenes: [0, 1], tempoScenes: [0] }, 128)).toEqual([]);
+  });
+
+  it('clears the whole song when given no bpm — the way back out', () => {
+    expect(songTempoOps(EVERY_SCENE, SONG, null)).toEqual([
+      { s: 0, tempo: -1 },
+      { s: 1, tempo: -1 },
+      { s: 2, tempo: -1 },
+    ]);
+  });
+
+  it('takes the first scene of the song, reprise included', () => {
+    // A song is a label rather than a range, so a reprise sixty scenes later is
+    // still this song — and it is still not where the tempo goes.
+    const spread: SceneFields[] = [
+      { s: 0, name: '@128-Bm NIGHTFALL', colorIndex: -1, color: 0, tempo: -1 },
+      { s: 9, name: '@128-Bm NIGHTFALL', colorIndex: -1, color: 0, tempo: 128 },
+    ];
+    expect(songTempoOps(spread, { scenes: [0, 9], tempoScenes: [9] }, 128)).toEqual([
+      { s: 0, tempo: 128 },
+      { s: 9, tempo: -1 },
+    ]);
+  });
+
+  it('is empty for a song with no scenes', () => {
+    expect(songTempoOps(EVERY_SCENE, { scenes: [], tempoScenes: [] }, 128)).toEqual([]);
   });
 });
 

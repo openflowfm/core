@@ -356,7 +356,8 @@ export function sceneColorOps(
 }
 
 /**
- * Tempo writes for `scenes`, dropping the ones that would change nothing.
+ * Tempo writes for exactly `scenes`, dropping the ones that would change
+ * nothing.
  *
  * `bpm` below `MIN_TEMPO` — or `null` — disables the scene's own tempo, which
  * is the way back out after turning it on. Two scenes both already disabled
@@ -366,6 +367,9 @@ export function sceneColorOps(
  * else in this module renames or recolors; a scene with its tempo enabled
  * changes the song tempo the moment it fires. Callers should make it a
  * deliberate action rather than a side effect of renaming.
+ *
+ * The primitive rather than the thing to reach for: a song wants
+ * `songTempoOps`, which is the whole reason this one takes an exact list.
  */
 export function tempoOps(
   before: readonly SceneFields[],
@@ -383,6 +387,49 @@ export function tempoOps(
     out.push({ s, tempo: want });
   }
   return out;
+}
+
+/**
+ * The scenes of one song, as `songTempoOps` needs them. Structurally typed over
+ * `DerivedSong` rather than importing it, like every other input here.
+ */
+export interface SongScenes {
+  /** Every scene carrying the song, ascending. The first is where a tempo goes. */
+  scenes: readonly number[];
+  /** Those of them that carry a `Scene.tempo` of their own — see `derive.ts`. */
+  tempoScenes: readonly number[];
+}
+
+/**
+ * Project a song's bpm onto Live: its **first** scene carries the tempo, and
+ * every other scene of the song gives its own up.
+ *
+ * First scene only, because that is what makes mixing into a song possible.
+ * Live takes a scene's tempo the moment that scene fires, so a song whose every
+ * scene carries its bpm can only ever be *entered* at that bpm — dropping into
+ * its second chorus while the set runs slower snaps the whole set. One scene
+ * carries it; the rest follow whatever is already playing.
+ *
+ * **The clearing half is the migration**, not a tidy-up. A set written the
+ * every-scene way converts song by song through exactly this call, which is why
+ * it reads `tempoScenes` rather than only writing the one scene and leaving the
+ * strays to be found later.
+ *
+ * The write comes before the clears. A run that fails partway then leaves the
+ * song enterable at its own tempo, which is the direction worth failing in.
+ *
+ * `bpm` null — or below `MIN_TEMPO` — clears the song outright, first scene
+ * included: the way back out after turning it on.
+ */
+export function songTempoOps(
+  before: readonly SceneFields[],
+  song: SongScenes,
+  bpm: number | null,
+): SceneWriteOp[] {
+  const first = song.scenes[0];
+  if (first === undefined) return [];
+  const strays = song.tempoScenes.filter((s) => s !== first);
+  return [...tempoOps(before, [first], bpm), ...tempoOps(before, strays, null)];
 }
 
 /**

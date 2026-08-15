@@ -34,11 +34,25 @@ that leaves the scene a color it never had is worse than one that leaves it alon
 `countUnrevertableColors` exists so the caller can *say* so; an undo that quietly does
 less than it claims is exactly what this module is written to avoid.
 
-**`tempoOps` is the one write in here that changes how the set sounds.** Everything else
-renames or recolors; a scene with its own tempo enabled changes the *song* tempo the
-moment it fires. BPM therefore lives on `Scene.tempo`, separately from the scene name;
-folding it into a rename would make a naming pass quietly alter playback. Below
-`MIN_TEMPO` means "clear it", which is also the way back out after turning it on.
+**The tempo writes are the only ones in here that change how the set sounds.** Everything
+else renames or recolors; a scene with its own tempo enabled changes the *song* tempo the
+moment it fires, so this stays a deliberate action rather than a side effect of renaming.
+Below `MIN_TEMPO` means "clear it", which is also the way back out after turning it on.
+
+**`songTempoOps` is the one to reach for, and `tempoOps` is its primitive.** A song's bpm
+is projected onto its **first** scene and cleared off every other scene the song has one
+on. First scene only is the whole point: the tempo used to sit on every scene, and Live
+takes a scene's tempo the moment it fires, so a 128 song could only ever be *entered* at
+128 — dropping into its second chorus while the set ran at 124 snapped everything. One
+scene carries it, the rest follow whatever is already playing.
+
+The clearing half is the **migration**, not a tidy-up: it reads `tempoScenes` from the
+derivation, so a set written the every-scene way converts song by song through the same
+call that projects a new one. The write is ordered before the clears, because a run that
+fails partway should leave the song enterable at its own tempo rather than at none.
+
+`tempoOps` stays for the "these exact scenes" case, which is what `songTempoOps` is built
+out of.
 
 Unlike color, **tempo reverses cleanly in both directions**: "follows the song" is a state
 Live will accept a write for, where "no color" is not. So turning a tempo on is fully
