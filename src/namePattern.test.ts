@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  BPM_SCENE_PATTERN,
   compilePattern,
   DEFAULT_SCENE_PATTERN,
   describePatternError,
@@ -27,7 +26,7 @@ const compile = (p: string, r?: TokenRegistry) => {
 describe('accepting and rejecting patterns', () => {
   it('compiles the default scene pattern — App.tsx asserts this with a !', () => {
     expect(DEFAULT_SCENE_PATTERN).toBe(
-      '([{role}])? (@{key?})? {song} ( - {artist})? ({{tag}})?',
+      '([{role}])? (@{bpm?}-{key?})? {song} ( - {artist})? ({{tag}})?',
     );
     expect(patternErrors(DEFAULT_SCENE_PATTERN)).toEqual([]);
     expect(compilePattern(DEFAULT_SCENE_PATTERN)).not.toBeNull();
@@ -36,11 +35,6 @@ describe('accepting and rejecting patterns', () => {
   it('still compiles the short-lived leading-tag convention', () => {
     expect(LEADING_TAG_SCENE_PATTERN).toBe('([{role}])? ({{tag}})? (@{key?})? {song}');
     expect(patternErrors(LEADING_TAG_SCENE_PATTERN)).toEqual([]);
-  });
-
-  it('still compiles the previous bpm-in-name convention', () => {
-    expect(BPM_SCENE_PATTERN).toBe('([{role}])? (@{bpm?}-{key?})? {song}');
-    expect(patternErrors(BPM_SCENE_PATTERN)).toEqual([]);
   });
 
   it('still compiles the legacy pattern — existing sets are named that way', () => {
@@ -129,7 +123,7 @@ describe('accepting and rejecting patterns', () => {
   });
 });
 
-describe('the shipped convention: ([{role}])? (@{key?})? {song} ( - {artist})? ({{tag}})?', () => {
+describe('the shipped convention: ([{role}])? (@{bpm?}-{key?})? {song} ( - {artist})? ({{tag}})?', () => {
   const c = compile(FULL);
 
   it('writes and reads the artist behind its separator', () => {
@@ -166,14 +160,15 @@ describe('the shipped convention: ([{role}])? (@{key?})? {song} ( - {artist})? (
 
   it('writes a full name', () => {
     expect(c.format({ song: 'Nightfall', tag: 'COVER', bpm: '128', key: 'Bm', role: 'chorus' })).toBe(
-      '[chorus] @Bm Nightfall {COVER}',
+      '[chorus] @128-Bm Nightfall {COVER}',
     );
   });
 
   it('reads a full name back', () => {
-    expect(c.parse('[chorus] @Bm Nightfall {COVER}')).toEqual({
+    expect(c.parse('[chorus] @128-Bm Nightfall {COVER}')).toEqual({
       song: 'Nightfall',
       tag: 'COVER',
+      bpm: '128',
       key: 'Bm',
       role: 'chorus',
     });
@@ -188,9 +183,9 @@ describe('the shipped convention: ([{role}])? (@{key?})? {song} ( - {artist})? (
   });
 
   it('drops a missing role and its brackets, not just the value', () => {
-    // "[] @Bm Nightfall" would be the naive result, and it wouldn't parse.
+    // "[] @128-Bm Nightfall" would be the naive result, and it wouldn't parse.
     expect(c.format({ song: 'Nightfall', bpm: '128', key: 'Bm' })).toBe(
-      '@Bm Nightfall',
+      '@128-Bm Nightfall',
     );
   });
 
@@ -217,13 +212,47 @@ describe('the shipped convention: ([{role}])? (@{key?})? {song} ( - {artist})? (
     expect(c.format({ song: 'Nightfall' })).toBe('Nightfall');
   });
 
-  it('ignores bpm because it belongs to Scene.tempo', () => {
-    expect(c.format({ song: 'Nightfall', bpm: '128' })).toBe('Nightfall');
+  it('drops the separator with whichever fact is missing', () => {
+    expect(c.format({ song: 'Nightfall', bpm: '128', key: 'Bm' })).toBe('@128-Bm Nightfall');
+    expect(c.format({ song: 'Nightfall', bpm: '128' })).toBe('@128 Nightfall');
     expect(c.format({ song: 'Nightfall', key: 'Bm' })).toBe('@Bm Nightfall');
+    expect(c.format({ song: 'Nightfall' })).toBe('Nightfall');
   });
 
-  it('reads the key back unambiguously', () => {
+  it('is a strict superset of the key-only convention it replaced', () => {
+    // The key-only spelling is byte-identical, which is what lets a set written
+    // under the previous convention keep parsing without being renamed.
+    expect(c.parse('[chorus] @Bm Nightfall - The Aviators {COVER}')).toEqual({
+      song: 'Nightfall',
+      artist: 'The Aviators',
+      tag: 'COVER',
+      key: 'Bm',
+      role: 'chorus',
+    });
+  });
+
+  it('reads the facts back unambiguously', () => {
     expect(c.parse('@Bm Nightfall')).toEqual({ song: 'Nightfall', key: 'Bm' });
+    expect(c.parse('@128 Nightfall')).toEqual({ song: 'Nightfall', bpm: '128' });
+    expect(c.parse('@128-Bm Nightfall')).toEqual({
+      song: 'Nightfall',
+      bpm: '128',
+      key: 'Bm',
+    });
+  });
+
+  // Two shapes this app cannot write — bpm is validated 20–999 and a song name
+  // is required — pinned so a later change to the group has to notice them
+  // rather than discover them on a set someone typed by hand in Live.
+  it('reads a four-digit bpm greedily, leaving the rest in the song', () => {
+    expect(c.parse('@1000-Bm Nightfall')).toEqual({
+      song: '0-Bm Nightfall',
+      bpm: '100',
+    });
+  });
+
+  it('gives the song its one required character out of a facts-only name', () => {
+    expect(c.parse('@128-Bm')).toEqual({ song: 'm', bpm: '128', key: 'B' });
   });
 
   it('reads a song that never followed the convention as all song', () => {
@@ -235,12 +264,14 @@ describe('the shipped convention: ([{role}])? (@{key?})? {song} ( - {artist})? (
 
   it('round-trips every shape the convention can produce', () => {
     const names = [
+      '[chorus] @128-Bm Nightfall {COVER}',
       '[chorus] @Bm Nightfall {COVER}',
       'Glass Tunnel {ORIGINAL}',
-      '[chorus] @Bm Nightfall',
-      '[post chorus] @F#m Glass Tunnel',
+      '[chorus] @128-Bm Nightfall',
+      '[post chorus] @92-F#m Glass Tunnel',
+      '@128-Bm Nightfall',
+      '@128 Nightfall',
       '@Bm Nightfall',
-      '[chorus] @Bm Nightfall',
       '[verse] Nightfall',
       'Nightfall',
       'Arp Jam 2',
@@ -375,9 +406,7 @@ describe('parse', () => {
 });
 
 describe('format', () => {
-  // Use the previous pattern here because it carries a numeric token; the
-  // formatter itself remains string-or-number regardless of today's scheme.
-  const c = compile(BPM_SCENE_PATTERN);
+  const c = compile(FULL);
 
   it('accepts numbers as well as strings', () => {
     expect(c.format({ song: 'Nightfall', bpm: 128 })).toBe('@128 Nightfall');
@@ -447,6 +476,7 @@ describe('compilePattern', () => {
     // what makes it droppable.
     expect(compile(FULL).tokens).toEqual([
       { name: 'role', optional: true },
+      { name: 'bpm', optional: true },
       { name: 'key', optional: true },
       { name: 'song', optional: false },
       { name: 'artist', optional: true },

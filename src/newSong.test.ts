@@ -25,15 +25,25 @@ describe('planNewSong', () => {
     });
   });
 
-  it('puts key in the name and color/tempo in scene properties', () => {
+  it('puts bpm and key in the name, and only the color on the scenes', () => {
+    // No `tempo`: one addition applies one tempo to all eight scenes, which is
+    // the every-scene convention this replaced. A new song's bpm is a label
+    // until someone projects it onto the song's first scene.
     expect(
       planNewSong({ ...BASE, key: 'F#m', bpm: '128', colorIndex: 1 }, 20, PALETTE, []),
     ).toEqual({
       at: 12,
       count: 8,
-      name: '@F#m NIGHTFALL',
+      name: '@128-F#m NIGHTFALL',
       color: 0xaabbcc,
-      tempo: 128,
+    });
+  });
+
+  it('writes a bpm with no key without a dangling separator', () => {
+    expect(planNewSong({ ...BASE, bpm: '92' }, 12, PALETTE, [])).toEqual({
+      at: 12,
+      count: NEW_SONG_SCENES,
+      name: '@92 NIGHTFALL',
     });
   });
 

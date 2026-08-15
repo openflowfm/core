@@ -3,18 +3,18 @@
 Everything in a scene name *except* the role tag:
 
 ```
-[CHORUS] @Bm NIGHTFALL - THE AVIATORS {COVER}
- └ role┘  │   └ song ┘   └ artist ┘    └ tag┘   roles.ts owns the role
-          └ key
+[CHORUS] @128-Bm NIGHTFALL - THE AVIATORS {COVER}
+ └ role┘  │   │   └ song ┘   └ artist ┘    └ tag┘   roles.ts owns the role
+         bpm  └ key
 ```
 
-An optional key precedes the required song, an optional artist follows it behind
+An optional bpm and key precede the required song, an optional artist follows it behind
 `" - "`, and an optional song tag comes last.
 `roles.ts` owns the bracketed role, this owns what follows it, and `titleOps` composes them — it rewrites the title and
 puts the scene's own role back on, so renaming a song across eighteen scenes doesn't
 disturb the roles you assigned them.
 
-**Role and key first, name next, song tag last.** Live's narrow scene column keeps the
+**Role and facts first, name next, song tag last.** Live's narrow scene column keeps the
 performance metadata visible and truncates the app-only catalog tag first. Our grid
 lifts every field into its own presentation, so the tag remains easy to scan there.
 
@@ -26,11 +26,21 @@ scene name. Those delimiters make custom tags reversible without matching a fixe
 The suggestions can later become device-state configuration alongside roles without
 changing the stored scene-name format.
 
-`@` opens the key from the front. It can't appear in `ROLE_CHARS` and won't start a
-title, so the key is identifiable without a closing delimiter. That asymmetry with the
+`@` opens the facts from the front. It can't appear in `ROLE_CHARS` and won't start a
+title, so the group is identifiable without a closing delimiter. That asymmetry with the
 role's brackets is deliberate — a role is recognised by *vocabulary* and so must stay
-visible when its name is unknown; a key is recognised by *shape* and can't fail the
-same way. BPM is stored independently on Live's `Scene.tempo` property.
+visible when its name is unknown; bpm and key are recognised by *shape* and can't fail the
+same way. The `-` between them is a **separator** and drops with either of them, so
+`@128-Bm`, `@128` and `@Bm` are one shape rather than three — and a key-only name is
+spelled byte-for-byte as the key-only convention spelled it, which is why this change
+needed no set renamed.
+
+**BPM is a label, and `formatTitle` writes it.** It used to live only on Live's
+`Scene.tempo`, and that made mixing into the middle of a song impossible: Live takes a
+scene's own tempo the moment that scene fires, so every scene of a 128 song snapped the
+set to 128 however fast it was already running. The name is the record now; projecting
+that bpm onto the song's **first** scene is a separate deliberate action — `songTempoOps`
+in `roles.ts`.
 
 **Parsing is anchored at both ends and never guesses in the middle.** The key is read
 only from a leading `@` group and the tag only from trailing literal braces, so `Arp Jam 2` keeps its whole title rather than having the
@@ -65,11 +75,11 @@ The spaces around the hyphen are load-bearing, and that's what keeps `TWENTY-ONE
 `formatTitle` drops an artist with no song rather than writing `" - THE AVIATORS"`, which
 would read back as a song called that: the unwritable half goes instead of the round trip.
 
-`parseTitle` also still reads the short-lived leading-tag form and both older BPM-bearing
-forms: leading `@128-Bm` and legacy trailing `128 Bm`. That's the migration path: a set
-named any earlier way keeps showing its metadata, and any rename writes the current
-`[ROLE] @KEY SONG {TAG}` convention.
-A no-op patch is therefore not a no-op rename on an old-convention scene.
+`parseTitle` also still reads the short-lived leading-tag form and the legacy trailing
+`128 Bm`. That's the migration path: a set named any earlier way keeps showing its
+metadata, and any rename writes the current `[ROLE] @BPM-KEY SONG {TAG}` convention.
+A no-op patch is therefore not a no-op rename on an old-convention scene — it is the one
+gesture that converts a scene without changing what it says.
 
 `TitlePatch` distinguishes **absent from empty**, and that distinction is the feature:
 an omitted field is left alone on every scene, an empty string clears that part.

@@ -11,7 +11,6 @@ import {
   type SceneInput,
 } from './derive.js';
 import {
-  BPM_SCENE_PATTERN,
   compilePattern,
   DEFAULT_SCENE_PATTERN,
   LEADING_TAG_SCENE_PATTERN,
@@ -430,9 +429,8 @@ describe('reading more than one convention', () => {
   // both have to land in the same song or the grid falls apart mid-pass.
   const CURRENT = compilePattern(DEFAULT_SCENE_PATTERN)!;
   const LEADING_TAG = compilePattern(LEADING_TAG_SCENE_PATTERN)!;
-  const WITH_BPM = compilePattern(BPM_SCENE_PATTERN)!;
   const LEGACY = compilePattern(LEGACY_SCENE_PATTERN)!;
-  const ALL = [CURRENT, LEADING_TAG, WITH_BPM, LEGACY];
+  const ALL = [CURRENT, LEADING_TAG, LEGACY];
 
   it('accepts a single pattern or a list, so existing callers are unaffected', () => {
     const one = derive([scene(0, 'Nightfall 128 Bm [verse]')], LEGACY);

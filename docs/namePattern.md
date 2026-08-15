@@ -5,9 +5,9 @@ generalisation `sceneTitle.ts` is a hand-written special case of. A pattern comp
 into a formatter, a parser, and a verdict on whether it was safe to compile at all.
 
 **The parser is the point.** Writing names is easy; the scheme rests on being able to
-look at `[CHORUS] @Bm NIGHTFALL {COVER}` six months later and recover which song, tag and
-role it belongs to with nothing stored on the side. That's what lets the mapping live in
-the set, need no ids, and travel with the `.als`.
+look at `[CHORUS] @128-Bm NIGHTFALL {COVER}` six months later and recover which song, tag
+and role it belongs to with nothing stored on the side. That's what lets the mapping live
+in the set, need no ids, and travel with the `.als`.
 
 Two kinds of ambiguity, and **only one is fatal**:
 
@@ -88,6 +88,15 @@ name.
 Counting fields is the same rule the pattern language already applies *within* a pattern
 — a name is read as filling as many parts as it can — lifted one level. Ties go to the
 earlier pattern, so the current convention wins a genuine ambiguity.
+
+That rule is also what keeps the list short. **A pattern that is another pattern minus
+some optional groups can never be chosen**, because the longer one matches everything it
+matches and reads at least as many fields out. `([{role}])? (@{bpm?}-{key?})? {song}` was
+in the list until the current convention grew its own `{bpm}` slot back and made it
+exactly that — so it was deleted rather than kept as a comment pretending to be code. The
+two entries that remain are reachable because they *order* their fields differently: the
+leading-tag form puts `{tag}` before the facts, and the legacy form puts the facts and the
+role after the song.
 
 This is what makes a convention change survivable at all. The mapping lives in the names,
 so switching patterns outright would make every scene in an already-named set unmapped at

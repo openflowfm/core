@@ -56,19 +56,29 @@ export type TokenRegistry = Readonly<Record<string, TokenSpec>>;
 /**
  * The convention the app writes.
  *
- *   [CHORUS] @Bm NIGHTFALL - THE AVIATORS {COVER}
- *    └ role┘  │   └ song ┘   └ artist ┘   └ tag┘
- *             └ key
+ *   [CHORUS] @128-Bm NIGHTFALL - THE AVIATORS {COVER}
+ *    └ role┘  │   │   └ song ┘   └ artist ┘   └ tag┘
+ *            bpm  └ key
  *
- * **Role first, then key and name, with the song tag last.** Live's narrow
- * scene column therefore keeps the performance metadata in view and lets the
- * app-only catalog tag truncate first. Everything but `{song}` is optional, so
- * a set nobody has mapped yet still parses — every scene reads as a song with
+ * **Role first, then the facts and the name, with the song tag last.** Live's
+ * narrow scene column therefore keeps the performance metadata in view and lets
+ * the app-only catalog tag truncate first. Everything but `{song}` is optional,
+ * so a set nobody has mapped yet still parses — every scene reads as a song with
  * no facts rather than as 848 unmapped rows.
  *
- * `@` opens the key from the front. It can't appear in `ROLE_CHARS` and won't
- * start a song title, so the field is identifiable without a closing bracket.
- * BPM lives on `Scene.tempo`, where firing the scene can actually act on it.
+ * `@` opens the facts from the front. It can't appear in `ROLE_CHARS` and won't
+ * start a song title, so the group is identifiable without a closing bracket,
+ * and the `-` between bpm and key drops with either of them — `@128-Bm`, `@128`
+ * and `@Bm` all fall out of this one shape. A name carrying only a key is
+ * therefore spelled exactly as the key-only convention that preceded this one
+ * spelled it, so no existing set needs renaming to keep parsing.
+ *
+ * **BPM is a label here, not a setting.** It used to live only on Live's
+ * `Scene.tempo`, and that made it impossible to mix into the middle of a song:
+ * Live takes a scene's own tempo the moment that scene fires, so every scene of
+ * a 128 song snapped the set to 128. The name is now the record, and the tempo
+ * is projected onto the song's **first** scene only, as a separate deliberate
+ * action — see `songTempoOps` in `roles.ts`.
  *
  * The role keeps its brackets, and that asymmetry is deliberate: a bare word
  * could only be recognised by matching the vocabulary, so renaming a role would
@@ -85,22 +95,21 @@ export type TokenRegistry = Readonly<Record<string, TokenSpec>>;
  * making configurable first.
  */
 export const DEFAULT_SCENE_PATTERN =
-  '([{role}])? (@{key?})? {song} ( - {artist})? ({{tag}})?';
+  '([{role}])? (@{bpm?}-{key?})? {song} ( - {artist})? ({{tag}})?';
 
-// There is deliberately no artistless entry in SCENE_PATTERNS below. The
-// artist group is optional, so this pattern matches everything its predecessor
-// matched and reads at least as many fields out of it — a second copy without
-// the group could never win `readName`'s most-fields rule, and a pattern that
-// can never be chosen is a comment pretending to be code.
+// There is deliberately no artistless entry in SCENE_PATTERNS below, and no
+// bpm-less one either. Both groups are optional, so this pattern matches
+// everything its predecessors matched and reads at least as many fields out of
+// it — a second copy without a group could never win `readName`'s most-fields
+// rule, and a pattern that can never be chosen is a comment pretending to be
+// code. That is also why the standalone `([{role}])? (@{bpm?}-{key?})? {song}`
+// entry is gone: it is this pattern minus two optional groups.
 
 /** The short-lived leading-tag convention, read so in-progress sets migrate. */
 export const LEADING_TAG_SCENE_PATTERN = '([{role}])? ({{tag}})? (@{key?})? {song}';
 
-/** The earlier BPM-in-name convention, still read while sets migrate. */
-export const BPM_SCENE_PATTERN = '([{role}])? (@{bpm?}-{key?})? {song}';
-
 /**
- * The convention this app wrote before the one above — `Nightfall 128 Bm [chorus]`.
+ * The first convention this app wrote — `Nightfall 128 Bm [chorus]`.
  *
  * Kept, and still compiled, because **derivation reads the mapping out of the
  * names**. Retiring it would make every scene in an existing set unmapped the
@@ -646,15 +655,15 @@ export function compilePattern(
 /**
  * The scene patterns, until the scheme file lands and makes them editable.
  *
- * Four, in order: the convention we write, the short-lived leading-tag form,
- * then the two BPM-bearing forms this app wrote before it. Derivation chooses
+ * Three, in order: the convention we write, the short-lived leading-tag form,
+ * then the trailing-facts form this app wrote before either. Derivation chooses
  * the richest match, so a set named an old way still shows its songs and
  * converts scene by scene as it's renamed.
  *
- * Only the first reads `{artist}`. The older three are kept byte-for-byte as
- * the code that wrote them spelled them — a fallback that parses old names
+ * Only the first reads `{artist}`. The older two are kept byte-for-byte as the
+ * code that wrote them spelled them — a fallback that parses old names
  * *differently* from the code that wrote them is worse than not having one — so
- * a name still in a BPM-bearing form keeps its artist in the song until it's
+ * a name still in one of those forms keeps its artist in the song until it's
  * renamed, which is exactly how every other convention change has migrated.
  *
  * Compiled once at module scope, and shared rather than rebuilt per caller —
@@ -668,6 +677,5 @@ export function compilePattern(
 export const SCENE_PATTERNS = [
   compilePattern(DEFAULT_SCENE_PATTERN)!,
   compilePattern(LEADING_TAG_SCENE_PATTERN)!,
-  compilePattern(BPM_SCENE_PATTERN)!,
   compilePattern(LEGACY_SCENE_PATTERN)!,
 ];

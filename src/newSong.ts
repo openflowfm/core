@@ -77,16 +77,20 @@ export function planNewSong(
   const addition: BSV.SceneAddition = {
     at: draft.at,
     count: NEW_SONG_SCENES,
-    // BPM belongs to Scene.tempo and therefore stays out of the durable name.
+    // The bpm goes in the name with everything else, and **`addition.tempo` is
+    // deliberately left unset**. One addition applies one tempo to all eight
+    // scenes, which is precisely the every-scene convention this replaced: it
+    // would mean a brand-new song could only ever be entered at its own bpm.
+    // Projecting the tempo onto the song's first scene is a separate, explicit
+    // action — see `songTempoOps` in `roles.ts`.
     name: formatTitle({
       song: draft.name,
       artist: draft.artist,
       key: draft.key,
-      bpm: '',
+      bpm: draft.bpm,
       tag: '',
     }),
   };
   if (draft.colorIndex !== null) addition.color = palette[draft.colorIndex]!;
-  if (draft.bpm.trim() !== '') addition.tempo = Number(draft.bpm);
   return addition;
 }

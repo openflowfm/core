@@ -1,20 +1,28 @@
 // The scene name convention, everything except the role tag.
 //
-//   [CHORUS] @Bm NIGHTFALL - THE AVIATORS {COVER}
-//    └ role┘  │   └ song ┘   └ artist ┘   └ tag┘   (roles.ts owns the role)
-//             └ key
+//   [CHORUS] @128-Bm NIGHTFALL - THE AVIATORS {COVER}
+//    └ role┘  │   │   └ song ┘   └ artist ┘   └ tag┘   (roles.ts owns the role)
+//            bpm  └ key
 //
 // `roles.ts` owns the bracketed tag at the front; this owns what follows it, and
 // the two compose — `titleOps` rewrites the title and puts the scene's own role
 // back on.
 //
-// **Role first, key and name next, song tag last.** Live's narrow scene column
+// **Role first, facts and name next, song tag last.** Live's narrow scene column
 // keeps the performance metadata in view and truncates the app-only catalog
 // tag first. Our grid parses each field into its own dedicated presentation.
 //
-// `@` opens the key from the front — it can't appear in a role and won't start
-// a title, so the field is identifiable without a closing delimiter. BPM is a
-// property of the Scene itself and is deliberately not written into its name.
+// `@` opens the facts from the front — it can't appear in a role and won't start
+// a title, so the group is identifiable without a closing delimiter. The `-`
+// between bpm and key drops with either of them, so `@128-Bm`, `@128` and `@Bm`
+// are all one shape.
+//
+// **BPM is a label, and writing it changes nothing about playback.** It used to
+// live only on Live's `Scene.tempo`, and that made mixing into the middle of a
+// song impossible — Live takes a scene's own tempo the moment that scene fires,
+// so every scene of a 128 song snapped the set to 128 however fast it was
+// already running. The name is the record; projecting it onto the song's first
+// scene is a separate, deliberate action in `roles.ts`.
 //
 // **The artist is optional and separated by `" - "`.** Song and artist are both
 // free text, so the separator is the only thing that can say where one stops —
@@ -171,15 +179,13 @@ function takeTrailingFacts(words: string[]): { bpm: string; key: string } {
 }
 
 /**
- * Split a title into its song tag, song, artist and key, plus any BPM carried
- * by an older name.
+ * Split a title into its song tag, song, artist, bpm and key.
  *
  * Reads a literal-braced tag from the tail, then an `@` group from the front,
  * then the artist off the back of what's left. It also accepts the short-lived
- * leading-tag order. Failing the `@` group it falls back to the **old**
- * convention's trailing `128 Bm`, so a set named the previous way still shows
- * its metadata while it migrates. Formatting leaves the BPM out and always
- * writes the tag last.
+ * leading-tag order. Failing the `@` group it falls back to the **oldest**
+ * convention's trailing `128 Bm`, so a set named that way still shows its
+ * metadata while it migrates. Formatting always writes the tag last.
  *
  * The artist split runs last on both paths, so it composes with every form
  * rather than being a fourth convention of its own.
@@ -213,7 +219,16 @@ export function parseTitle(title: string): SceneTitle {
 }
 
 /**
- * The name-bearing parts back into a title. BPM belongs to `Scene.tempo`.
+ * The fields back into a title, spelled exactly as `DEFAULT_SCENE_PATTERN`
+ * spells them — the two have to agree, since one writes the names and the
+ * compiled other reads them back.
+ *
+ * The `-` between bpm and key is a **separator**: it only means anything when
+ * both sides are there, so it drops with either, and `@128`, `@Bm` and
+ * `@128-Bm` all come out of the same two lines. That elision is what makes this
+ * shape a strict superset of the key-only convention that preceded it — a scene
+ * with no bpm is written byte-for-byte as it was — so no set needs renaming to
+ * keep parsing.
  *
  * The song is uppercased here, which is the only place it happens — identity is
  * `songKey`, which folds case, so this is presentation and can't fork a song in
@@ -227,12 +242,14 @@ export function parseTitle(title: string): SceneTitle {
  * prevent, so the unwritable half goes rather than the round trip.
  */
 export function formatTitle(t: SceneTitle): string {
+  const bpm = t.bpm.trim();
   const key = t.key.trim();
   const tag = t.tag.trim().toUpperCase();
   const song = t.song.trim().toUpperCase();
   const artist = t.artist.trim().toUpperCase();
   const named = song !== '' && artist !== '' ? `${song}${ARTIST_SEPARATOR}${artist}` : song;
-  return [key ? `@${key}` : '', named, tag ? `{${tag}}` : '']
+  const facts = bpm === '' && key === '' ? '' : `@${[bpm, key].filter((p) => p !== '').join('-')}`;
+  return [facts, named, tag ? `{${tag}}` : '']
     .filter((p) => p !== '')
     .join(' ');
 }
