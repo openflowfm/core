@@ -9,6 +9,7 @@ export * from './namePattern.js';
 export * from './derive.js';
 export * from './songRows.js';
 export * from './setModel.js';
+export * from './chainWatch.js';
 export * from './sceneMove.js';
 export * from './snapshotDelta.js';
 export * from './backstop.js';
