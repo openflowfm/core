@@ -80,6 +80,29 @@ the wire as JSON, and a `Map` does not survive `JSON.stringify` — it arrives a
 silently, with every lookup then missing. `songAt` is the single-lookup helper; anything
 doing it in a loop should build its own `Map` once.
 
+`factsByScene` is the mapping at **scene** resolution — the role, key and bpm one scene's
+own name states — keyed the same way and for the same reason. It is the rule this file is
+about applied one level down: `derive()` has always read all three off the name, and
+discarding them here is what left every client that wanted a scene's role writing a regex
+of its own. There were three such regexes when it was added, against a convention none of
+them owned.
+
+It is what lets a reader print a fact **where it is true rather than where it was
+declared**. A song whose scenes agree on the key states it once, in the header; a song that
+modulates has no single key to state — `SongEntry.key` is already the collection `Bm / D`
+by then — so a reader drops it from the header and prints each scene's own instead. That
+question cannot be answered from `SongEntry` at all, in either direction: comparing scenes
+against the song's key fails exactly when it matters, because by the time one scene differs
+the value being compared against is the collection and every scene differs from it.
+
+**Every field is absent rather than empty**, and a scene stating nothing has no entry at
+all, so a set named only at the song level pays nothing for this. That is the same rule the
+protocol states as "absent gets its own value, never a plausible default" — a field that
+can be missing and encodes it as `''` is a bug waiting to look like data.
+
+It stays inside the scope boundary above: all three are functions of the scene name, so a
+`sceneRows` delta is enough to keep them current.
+
 `rev` is passed in rather than read from the derivation. A derivation is a pure function
 of scene rows and has no idea which snapshot revision produced them, and a model whose
 `rev` disagreed with the snapshot beside it would be worse than one with no `rev` at all.

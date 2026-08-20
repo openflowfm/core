@@ -96,6 +96,24 @@ describe('buildSetModel', () => {
     ]);
   });
 
+  it('carries what each scene states, so nothing downstream re-reads a name', () => {
+    const m = model([
+      scene(0, '[INTRO] @128-Bm NIGHTFALL'),
+      scene(1, '[BRIDGE] @128-D NIGHTFALL'),
+    ]);
+    expect(m.factsByScene).toEqual({
+      '0': { role: 'INTRO', key: 'Bm', bpm: '128' },
+      '1': { role: 'BRIDGE', key: 'D', bpm: '128' },
+    });
+  });
+
+  it('leaves out what a scene does not state, rather than saying it blankly', () => {
+    const m = model([scene(0, 'NIGHTFALL'), scene(1, '[VERSE] NIGHTFALL')]);
+    // A field that can be missing and encodes it as '' is a bug waiting to look
+    // like data, and a scene stating nothing is not in here at all.
+    expect(m.factsByScene).toEqual({ '1': { role: 'VERSE' } });
+  });
+
   it('reports scenes no pattern reads, and maps them to nothing', () => {
     // A pattern that only matches a bracketed role leaves a bare name unread.
     const strict = compilePattern('[{role}]')!;

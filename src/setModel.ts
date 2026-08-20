@@ -59,7 +59,21 @@ export function buildSetModel(d: Derivation, rev: number): BSV.SetModel {
   const songByScene: Record<string, string> = {};
   for (const song of songs) for (const s of song.scenes) songByScene[String(s)] = song.songKey;
 
-  return { rev, songs, songByScene, unmapped: d.unmapped };
+  // The same names, read at scene resolution. `derive()` has already done the
+  // reading — dropping it here is what used to leave every client that wanted a
+  // scene's role writing a regex of its own against a convention it did not
+  // own. A scene that states nothing gets no entry, so a set named only at the
+  // song level pays nothing for this.
+  const factsByScene: Record<string, BSV.SceneFacts> = {};
+  for (const scene of d.scenes) {
+    const facts: BSV.SceneFacts = {};
+    if (scene.role) facts.role = scene.role;
+    if (scene.fields?.key) facts.key = scene.fields.key;
+    if (scene.fields?.bpm) facts.bpm = scene.fields.bpm;
+    if (facts.role || facts.key || facts.bpm) factsByScene[String(scene.s)] = facts;
+  }
+
+  return { rev, songs, songByScene, factsByScene, unmapped: d.unmapped };
 }
 
 /**
