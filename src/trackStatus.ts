@@ -87,6 +87,44 @@ export function trackStatus(clip: BSV.PlayingClip, tempo: number): TrackStatus |
 }
 
 /**
+ * Where a looping clip is in bars: which bar, of how many.
+ *
+ * `trackStatus` answers the same question as a fraction, which is what a pie
+ * wants. A reader that has room for words wants the count instead — "bar 3 of
+ * 8" says both how far in you are *and* how long the loop is, and five to go is
+ * a subtraction rather than an estimate off an arc. A four-bar loop and a
+ * sixteen-bar loop look identical at the same phase.
+ *
+ * `bar` counts from 1, matching `trackStatus`'s recording form and Live's own
+ * transport: a clip one beat in is in bar 1, not bar 0.
+ *
+ * Null where bars cannot mean anything — a clip that is not looping, a loop
+ * with no length, or **unwarped audio**, whose position Live reports in seconds
+ * and which therefore has no bars to count however the signature reads.
+ */
+export function loopBars(clip: BSV.PlayingClip): { bar: number; bars: number } | null {
+  if (!clip.looping || clip.inSeconds) return null;
+  const { position, loopStart, loopEnd } = clip;
+  if (!isFinite(position) || !isFinite(loopStart) || !isFinite(loopEnd)) return null;
+
+  const span = loopEnd - loopStart;
+  if (!(span > 0)) return null;
+
+  const perBar = beatsPerBar(clip.signatureNumerator, clip.signatureDenominator);
+  if (!(perBar > 0)) return null;
+
+  // Rounded, not floored: a loop is a whole number of bars in every set anyone
+  // plays, and float positions off the LOM make an exact 8 arrive as 7.999.
+  // Flooring turns that into a 7-bar loop, which is worse than wrong — it is
+  // wrong in a way that looks deliberate.
+  const bars = Math.max(1, Math.round(span / perBar));
+  // Wrapped for the reason the phase is: Live can report a position a hair past
+  // `loop_end` between the wrap and the next frame, and bar 9 of 8 is nonsense.
+  const elapsed = Math.max(0, position - loopStart) % span;
+  return { bar: Math.min(bars, Math.floor(elapsed / perBar) + 1), bars };
+}
+
+/**
  * A one-shot's countdown, as Live writes it: `m:ss`, rounded up.
  *
  * Up rather than down so the display reaches `0:00` as the clip ends rather

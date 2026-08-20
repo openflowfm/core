@@ -36,6 +36,20 @@ facts `lom.ts` reads off the playing clip — and Live's song tempo, and returns
 | `oneShot` | `secondsLeft` | it doesn't |
 | `recording` | `bars`, `beats`, both counting from 1 | Live is recording into it |
 
+`loopBars` answers the same question as the loop form, in words rather than as a
+fraction: **which bar, of how many.** A pie wants the fraction; a reader with room for
+text wants the count, because a four-bar loop and a sixteen-bar loop are the same arc at
+the same phase and "five to go" is a subtraction rather than an estimate. It is null
+wherever bars cannot mean anything — a clip that isn't looping, a loop with no length,
+and unwarped audio, whose position Live reports in seconds.
+
+Its bar total is **rounded, not floored**, and that is the one line worth defending. A
+loop is a whole number of bars in every set anyone plays, but it arrives off the LOM as a
+float, so an eight-beat loop can read 7.999. Flooring turns that into a one-bar loop —
+wrong in a way that looks deliberate, which is worse than wrong. The current bar is
+wrapped for the same reason the phase is: Live can report a position a hair past
+`loop_end` between the wrap and the next frame, and bar 9 of 8 is nonsense.
+
 `recording` outranks looping. A clip being recorded into is usually also a looping clip,
 and its length so far is the thing you need while the take is running.
 
