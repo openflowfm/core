@@ -137,6 +137,53 @@ that to a single bar of Am is true and useless: nobody reads a one-bar chart, an
 you are on the chord is part of what the chart says. Four is what a progression is written
 in, unless the clip itself is shorter — in which case the clip wins.
 
+## The degree colours
+
+A note's colour on the roll says **what it is doing in the key**, not what it is. The rule
+is one sentence: **a step of a fifth is a step of the colour wheel** — thirty degrees of hue
+per fifth, root at red.
+
+| degree | in C | hue | reads as |
+|---|---|---|---|
+| 1 | C | 0° | red |
+| b2 | Db | 210° | azure |
+| 2 | D | 60° | yellow |
+| b3 | Eb | 270° | violet |
+| 3 | E | 120° | green |
+| 4 | F | 330° | pink |
+| b5 | Gb | 180° | cyan |
+| 5 | G | 30° | orange |
+| b6 | Ab | 240° | blue |
+| 6 | A | 90° | lime |
+| b7 | Bb | 300° | magenta |
+| 7 | B | 150° | spring green |
+
+One sentence is the whole requirement, because a colour scheme is worth nothing to anybody
+who has not memorised it, and nobody memorises twelve arbitrary swatches. Somebody who knows
+the rule can reconstruct the table.
+
+**Why the fifths and not `degree * 30`.** The chromatic mapping is a sentence too, and it is
+worse at both of the things this has to do:
+
+- A **flattened degree lands 150° from its natural** — b3 violet against a green 3, b7
+  magenta against a spring-green 7. Near enough opposite that major or minor is readable
+  across a stage without reading anything. Chromatically they are adjacent hues.
+- A **chromatic run alternates violently** rather than shading through three neighbouring
+  greens, which is what `degree * 30` does to 3, 4 and b3 — the three a walk-up is made of.
+
+**What it costs**, and it is worth naming: the root and the fifth land one step apart, red
+and orange, and those are the two a bass player reads most. The roll pays for that outside
+the colour — a root note is drawn with a ring round it — so the one degree that has to be
+unmistakable does not depend on hue at all. That is the general shape of the trade: hue
+carries eleven degrees well and the twelfth gets a second channel.
+
+Lightness moves with hue because it has to. At one fixed value a yellow 2 is glare and a
+blue b6 is a hole, and both have to carry dark text at the size a phone draws them.
+
+`keyRoot` is what makes any of it possible, and it answers **null** rather than guessing at C
+for a key it cannot read. A roll coloured against the wrong root is worse than one not
+coloured at all, because the colours would still look deliberate.
+
 ## Naming a note the way Live does
 
 `pitchName` puts an octave on a pitch, and it uses **Live's convention rather than the

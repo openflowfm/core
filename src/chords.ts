@@ -373,6 +373,76 @@ export function spellsFlat(key: string): boolean {
 }
 
 /**
+ * The pitch class a key is built on — `Bb` is 10, `F#m` is 6.
+ *
+ * Takes the key exactly as the scene names spell it, like `spellsFlat`, and
+ * answers null for anything it cannot read rather than guessing at C. Null is
+ * what turns the roll's degree colouring off, and a roll coloured against the
+ * wrong root is worse than one not coloured at all: the colours would still
+ * look deliberate.
+ */
+export function keyRoot(key: string): number | null {
+  const clean = key.trim();
+  const letter = LETTER[clean.charAt(0).toUpperCase()];
+  if (letter === undefined) return null;
+  const next = clean.charAt(1);
+  // `Bb` is B flat and `Bm` is B minor, which is the whole of the ambiguity —
+  // an accidental is the only thing that can follow the letter and change the
+  // pitch.
+  const shift = next === '#' ? 1 : next === 'b' ? -1 : 0;
+  return pitchClass(letter + shift);
+}
+
+const LETTER: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+
+/** Semitones from the key's root, 0–11, with the root itself at 0. */
+export function degreeOf(pitch: number, root: number): number {
+  return pitchClass(pitch - root);
+}
+
+const DEGREE = ['1', 'b2', '2', 'b3', '3', '4', 'b5', '5', 'b6', '6', 'b7', '7'];
+
+/** A degree as an interval, always from the major scale: `b3`, never `#2`. */
+export function degreeName(degree: number): string {
+  return DEGREE[pitchClass(degree)] ?? '';
+}
+
+/**
+ * The colour a scale degree is always drawn in.
+ *
+ * **A step of a fifth is a step of the colour wheel.** Thirty degrees of hue per
+ * fifth, root at red, which makes the whole scheme one sentence long — the
+ * property that matters, because it is only worth anything to somebody who has
+ * memorised it.
+ *
+ * Two things fall out of that rule, and both are why it is the fifths and not
+ * the chromatic ladder:
+ *
+ * - **A flattened degree lands 150° from its natural** — b3 violet against a
+ *   green 3, b7 magenta against a spring-green 7. Near enough opposite that
+ *   major or minor is readable across a stage without reading anything.
+ * - **A chromatic run alternates violently** instead of shading through three
+ *   neighbouring greens, which is what `degree * 30` gives and what makes a
+ *   walk-up unreadable.
+ *
+ * The cost is that the root and the fifth land a step apart, red and orange, and
+ * those are the two a bass player reads most. The roll pays for that outside the
+ * colour: a root note is drawn with a ring round it, so the one degree that has
+ * to be unmistakable does not depend on hue at all.
+ *
+ * Lightness moves with hue because it has to. At one fixed value a yellow 2 is
+ * glare and a blue b6 is a hole, and both carry dark text at the size a phone
+ * draws them.
+ */
+export function degreeColor(degree: number): string {
+  const step = (pitchClass(degree) * 7) % 12;
+  return `hsl(${step * 30} 72% ${LIGHTNESS[step]}%)`;
+}
+
+/** Perceived-brightness trim, indexed by the same step as the hue. */
+const LIGHTNESS = [62, 60, 56, 54, 54, 56, 60, 64, 68, 68, 66, 64];
+
+/**
  * How many windows the progression actually takes before it repeats.
  *
  * A four-bar progression written into an eight-bar clip is still a four-bar

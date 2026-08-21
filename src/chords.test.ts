@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  degreeColor,
+  degreeName,
+  degreeOf,
+  keyRoot,
   looksPercussive,
   pitchName,
   readProgression,
@@ -263,6 +267,69 @@ describe('pitchName', () => {
   it('spells the black keys to match the chart', () => {
     expect(pitchName(46)).toBe('A#1');
     expect(pitchName(46, true)).toBe('Bb1');
+  });
+});
+
+describe('keyRoot', () => {
+  it('reads a key the way the scene names spell it', () => {
+    expect(keyRoot('C')).toBe(0);
+    expect(keyRoot('Gm')).toBe(7);
+    expect(keyRoot('Bb')).toBe(10);
+    expect(keyRoot('F#m')).toBe(6);
+    expect(keyRoot('Ebmaj7')).toBe(3);
+  });
+
+  it('tells a flat from a minor', () => {
+    // The whole of the ambiguity: `Bb` is B flat and `Bm` is B minor.
+    expect(keyRoot('Bb')).toBe(10);
+    expect(keyRoot('Bm')).toBe(11);
+  });
+
+  it('says nothing rather than guessing at C', () => {
+    expect(keyRoot('')).toBeNull();
+    expect(keyRoot('   ')).toBeNull();
+    expect(keyRoot('vibes')).toBeNull();
+  });
+});
+
+describe('degreeOf and degreeName', () => {
+  it('counts semitones up from the root', () => {
+    expect(degreeOf(43, 7)).toBe(0);
+    expect(degreeOf(46, 7)).toBe(3);
+    expect(degreeOf(38, 7)).toBe(7);
+  });
+
+  it('names an interval from the major scale, always', () => {
+    // A minor third is b3 whatever key it is in. Deterministic beats correct
+    // spelling here: the point is that one degree is always one label.
+    expect([0, 3, 4, 7, 10].map(degreeName)).toEqual(['1', 'b3', '3', '5', 'b7']);
+  });
+});
+
+describe('degreeColor', () => {
+  it('moves thirty degrees of hue per fifth', () => {
+    expect(degreeColor(0)).toMatch(/^hsl\(0 /);
+    expect(degreeColor(7)).toMatch(/^hsl\(30 /);
+    expect(degreeColor(2)).toMatch(/^hsl\(60 /);
+  });
+
+  it('puts a flattened degree across the wheel from its natural', () => {
+    // The property the whole scheme is for: major or minor is readable across a
+    // stage without reading anything.
+    const hue = (degree: number) => Number(/^hsl\((\d+) /.exec(degreeColor(degree))![1]);
+    expect(Math.abs(hue(3) - hue(4))).toBe(150);
+    expect(Math.abs(hue(10) - hue(11))).toBe(150);
+    expect(Math.abs(hue(8) - hue(9))).toBe(150);
+  });
+
+  it('gives all twelve degrees a colour of their own', () => {
+    const all = Array.from({ length: 12 }, (_, i) => degreeColor(i));
+    expect(new Set(all).size).toBe(12);
+  });
+
+  it('wraps, so a pitch class is enough', () => {
+    expect(degreeColor(12)).toBe(degreeColor(0));
+    expect(degreeColor(-1)).toBe(degreeColor(11));
   });
 });
 
