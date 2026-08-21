@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { looksPercussive, readProgression, spellsFlat, type ChordNote } from './chords.js';
+import {
+  looksPercussive,
+  pitchName,
+  readProgression,
+  spellsFlat,
+  type ChordNote,
+} from './chords.js';
 
 /** A chord held for `duration` beats from `start`, as pitches. */
 function chord(start: number, duration: number, pitches: number[]): ChordNote[] {
@@ -237,6 +243,26 @@ describe('spellsFlat', () => {
   it('has no opinion when the set says nothing', () => {
     expect(spellsFlat('')).toBe(false);
     expect(spellsFlat('   ')).toBe(false);
+  });
+});
+
+describe('pitchName', () => {
+  it('names a note the way Live does, not the way a textbook does', () => {
+    expect(pitchName(60)).toBe('C3');
+    expect(pitchName(48)).toBe('C2');
+    expect(pitchName(0)).toBe('C-2');
+  });
+
+  it('names the bottom of a bass', () => {
+    // The two notes the roll is built around: a four-string's open E, and the
+    // low B a five-string adds under it.
+    expect(pitchName(28)).toBe('E0');
+    expect(pitchName(23)).toBe('B-1');
+  });
+
+  it('spells the black keys to match the chart', () => {
+    expect(pitchName(46)).toBe('A#1');
+    expect(pitchName(46, true)).toBe('Bb1');
   });
 });
 

@@ -264,6 +264,20 @@ export function noteName(pc: number, flats = false): string {
   return (flats ? FLAT : SHARP)[pitchClass(pc)] ?? '';
 }
 
+/**
+ * A MIDI note as Live writes it, octave and all — 60 is `C3`.
+ *
+ * **Live's convention, not the scientific one**, where 60 is C4 and everything
+ * is a number higher. The chart is read next to Live and by people who read the
+ * clip in Live, so a roll whose gutter disagreed with the piano roll they would
+ * open to check it would be worse than one with no labels on it. It puts a
+ * five-string's low B at `B-1` and a four-string's low E at `E0`, which look
+ * wrong written down and are exactly what Live shows.
+ */
+export function pitchName(pitch: number, flats = false): string {
+  return `${noteName(pitch, flats)}${Math.floor(pitch / 12) - 2}`;
+}
+
 /** Whether a pitch class is a black key, for drawing one. */
 export function isBlackKey(pc: number): boolean {
   const at = pitchClass(pc);

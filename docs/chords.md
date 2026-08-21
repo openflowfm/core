@@ -10,6 +10,20 @@ place the harmony exists is the MIDI itself.
 That changes what correctness means here. Everything else can be wrong only if the code is
 wrong; this can be wrong because music is ambiguous. So the module is built to decline.
 
+## Nothing reads the progression right now
+
+**`readProgression` and `looksPercussive` have no caller.** The chart drew inferred chord
+symbols and now draws the bass track's clip note for note — see
+[the bass roll](../../chart/docs/reading.md) for why. What the phone still uses from this
+file is the naming: `noteName`, `pitchName`, `isBlackKey` and `spellsFlat` label the roll's
+keyboard in the spelling the set's own key states.
+
+It is kept because it is pure, tested and the question it answers has not gone away: the
+keys player wants the harmony, and the material to work it out from is the same material.
+It is the *display* that did not earn its space, not the inference. **If it stays unread it
+should come out**, tests and doc together — an untested claim is better than a tested one
+nothing exercises against real material.
+
 ## It is allowed to say it does not know
 
 A window that spells nothing recognisable returns a null symbol rather than the nearest
@@ -122,6 +136,19 @@ inherited by whatever clip came next.
 that to a single bar of Am is true and useless: nobody reads a one-bar chart, and how long
 you are on the chord is part of what the chart says. Four is what a progression is written
 in, unless the clip itself is shorter — in which case the clip wins.
+
+## Naming a note the way Live does
+
+`pitchName` puts an octave on a pitch, and it uses **Live's convention rather than the
+scientific one** — 60 is `C3`, so a four-string bass's open E is `E0` and the low B a
+five-string adds under it is `B-1`. Both look a semitone-and-an-octave wrong written down,
+and both are what Live shows.
+
+The rule is that a label on a chart must survive being checked. Somebody who does not
+believe the roll will open the clip in Live, and a gutter disagreeing with Live's own piano
+roll would make the chart the thing that was wrong. `widgets/param/format.ts` has its own
+copy of this for parameter values, because rule 1 keeps the two modules from importing each
+other.
 
 ## Imports nothing
 
