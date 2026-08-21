@@ -56,8 +56,8 @@ than a grid: a song sitting on Am for four bars is one cell that says Am, not ei
 
 ## What it is fed matters more than any of this
 
-`isPercussion` exists because drums are MIDI too, and a kick and snare at C1 and D1 are not
-a small error. Measured on a four-chord loop:
+`looksPercussive` exists because drums are MIDI too, and a kick and snare at C1 and D1 are
+not a small error. Measured on a four-chord loop:
 
 ```
 keys + bass + pad     Am | F  | C | G
@@ -66,10 +66,30 @@ bass alone            —                  (single notes spell nothing, correctl
 with drums merged in  Am6| F6 | C | Gmaj7
 ```
 
-It matches on Live's `Device.class_name`, which the wire carries for exactly this. A track
-whose instrument is unrecognised is **not** treated as percussion: an unknown synth should
-still make chords, and guessing wrong in that direction leaves a chart incomplete rather
-than misspelled.
+**The device class is not enough**, which took a real set to find out. It catches a Drum
+Rack and an Impulse; a third-party drum plugin answers `PluginDevice` exactly like a synth,
+and a kit inside an Instrument Rack answers `InstrumentGroupDevice`. The set this was built
+against reported `PluginDevice`, so its kit was merged into every chord *and*, being the
+longest clip playing, decided how long the chart was.
+
+So the notes are asked instead, and four things have to hold at once. A drum kit maps
+**unrelated sounds across a wide stretch of keyboard**, which is the shape nothing musical
+has:
+
+```
+ track          per bar  classes  spread  median duration
+ Sparkle Pad        1.0        4       9            16.00
+ Pluck              1.0        4       7            15.98
+ Bass               5.0        2       2             0.21
+ Drums             16.4        4      41             0.13   <- all four
+```
+
+Requiring all four is what keeps it conservative. What it can still get wrong is a busy
+sixteenth-note arpeggio over three octaves on few pitch classes, which by these numbers
+really is shaped like a kit — a diminished cycle up the keyboard is the clearest example.
+Losing that costs a chart one of its sources; letting a kit through costs it every chord,
+so the bias is deliberate. If it misfires on a real part the fix is to let the *set* say
+so, not to loosen this.
 
 ## What a chord *is*, beside what it is called
 
@@ -88,6 +108,20 @@ drawing a keyboard labels its rows with the spelling the symbols use. A chart th
 
 `spellsFlat` takes the key the scene names already state, so the chart reads `Bb` where the
 set says `Bb` rather than `A#`.
+
+## How long the chart is
+
+The progression is trimmed to the shortest whole number of **bars** its labels repeat on. A
+four-bar progression written into an eight-bar clip is still four bars, and drawing it twice
+spends half a phone screen on a repeat — which matters most where space is scarcest. It is
+also what stops the longest clip playing from deciding the answer: a drum loop is usually
+the longest thing in a scene, and even excluded from the harmony its *length* used to be
+inherited by whatever clip came next.
+
+**Floored at four bars.** A song sitting on one chord repeats every window, and collapsing
+that to a single bar of Am is true and useless: nobody reads a one-bar chart, and how long
+you are on the chord is part of what the chart says. Four is what a progression is written
+in, unless the clip itself is shorter — in which case the clip wins.
 
 ## Imports nothing
 

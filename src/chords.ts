@@ -270,23 +270,71 @@ export function isBlackKey(pc: number): boolean {
   return at === 1 || at === 3 || at === 6 || at === 8 || at === 10;
 }
 
-/**
- * Whether an instrument's notes are percussion rather than harmony.
- *
- * Drums are MIDI like everything else, and merging them into the pitch set is
- * not a small error — a kick and a snare sit at C1 and D1, so a four-chord loop
- * of `Am | F | C | G` reads back as `Am6 | F6 | C | Gmaj7` with a drum track in
- * it. Measured, not guessed at.
- *
- * Matched on Live's `Device.class_name`, which `ClipNotes.instrument` carries
- * for exactly this. A track whose instrument is unknown or absent is *not*
- * treated as percussion: an unrecognised synth should still make chords, and
- * the failure of guessing wrong in that direction is a chart that is merely
- * incomplete rather than one that is wrong.
- */
-export function isPercussion(className: string): boolean {
+/** Live's own drum instruments, which say what they are. */
+function drumClass(className: string): boolean {
   const clean = className.trim();
   return clean === 'DrumGroupDevice' || clean === 'InstrumentImpulse';
+}
+
+/**
+ * Whether a clip is percussion rather than harmony.
+ *
+ * Merging drums into the pitch set is not a small error — a kick and a snare
+ * sit at C1 and D1, so `Am | F | C | G` reads back as `Am6 | F6 | C | Gmaj7`
+ * with a drum track in it, and a drum loop is usually the longest clip playing
+ * so it also decides how long the chart thinks the progression is.
+ *
+ * **The device class is not enough.** It catches a Drum Rack and an Impulse and
+ * nothing else: a third-party drum plugin answers `PluginDevice`, exactly like
+ * a synth, and a kit inside an Instrument Rack answers `InstrumentGroupDevice`.
+ * Measured against a real set, the drum track reported `PluginDevice` and was
+ * merged into every chord.
+ *
+ * So the notes are asked instead, and four things have to be true at once. A
+ * drum kit maps *unrelated sounds* across a wide stretch of keyboard, which is
+ * the signal nothing musical produces: many notes, few pitch classes, a spread
+ * far wider than any voicing, and hits rather than held tones. From the set
+ * this was built against:
+ *
+ * ```
+ *  track          per bar  classes  spread  median duration
+ *  Sparkle Pad        1.0        4       9            16.00
+ *  Pluck              1.0        4       7            15.98
+ *  Bass               5.0        2       2             0.21
+ *  Drums             16.4        4      41             0.13   <- all four
+ * ```
+ *
+ * **Requiring all four is what keeps it conservative.** The case it can still
+ * get wrong is a busy sixteenth-note arpeggio spanning three octaves on few
+ * pitch classes, which by these numbers is shaped like a drum pattern. Losing
+ * that costs a chart one of its sources, where letting a drum kit through costs
+ * it every chord — so the bias is deliberate. If it ever misfires on a real
+ * part, the fix is to let the set say so rather than to loosen this.
+ */
+export function looksPercussive(
+  notes: readonly ChordNote[],
+  bars: number,
+  className = '',
+): boolean {
+  if (drumClass(className)) return true;
+  if (notes.length === 0 || !(bars > 0)) return false;
+
+  if (notes.length / bars < 12) return false;
+
+  const classes = new Set<number>();
+  let low = Number.POSITIVE_INFINITY;
+  let high = Number.NEGATIVE_INFINITY;
+  for (const note of notes) {
+    classes.add(pitchClass(note.pitch));
+    if (note.pitch < low) low = note.pitch;
+    if (note.pitch > high) high = note.pitch;
+  }
+  if (classes.size > 5) return false;
+  if (high - low < 24) return false;
+
+  const held = notes.map((note) => note.duration).sort((a, b) => a - b);
+  const median = held[Math.floor(held.length / 2)] ?? 0;
+  return median <= 0.5;
 }
 
 /**
@@ -308,6 +356,36 @@ export function spellsFlat(key: string): boolean {
   const flatMajors = new Set(['F']);
   const flatMinors = new Set(['D', 'G', 'C', 'F']);
   return minor ? flatMinors.has(letter) : flatMajors.has(letter);
+}
+
+/**
+ * How many windows the progression actually takes before it repeats.
+ *
+ * A four-bar progression written into an eight-bar clip is still a four-bar
+ * progression, and drawing it twice wastes half a phone screen on a repeat —
+ * which matters most where it is scarcest. This finds the shortest whole
+ * number of **bars** the labels repeat on, so a chart contracts to the length
+ * of the music rather than the length of the longest clip that happens to be
+ * playing.
+ *
+ * **Floored at four bars.** A song sitting on one chord repeats every window,
+ * and collapsing that to a single bar of Am would be technically true and
+ * useless: nobody reads a one-bar chart, and the bar count is part of what says
+ * how long you are on it. Four is what a progression is written in unless the
+ * clip is shorter than that, in which case the clip wins.
+ */
+function repeatingWindows(labels: ReadonlyArray<Named | null>, perBar: number): number {
+  const floor = Math.min(labels.length, perBar * 4);
+  for (let period = perBar; period < labels.length; period += perBar) {
+    if (period < floor) continue;
+    if (labels.length % period !== 0) continue;
+    let repeats = true;
+    for (let i = period; i < labels.length && repeats; i++) {
+      if ((labels[i]?.symbol ?? null) !== (labels[i % period]?.symbol ?? null)) repeats = false;
+    }
+    if (repeats) return period;
+  }
+  return labels.length;
 }
 
 /**
@@ -334,12 +412,20 @@ export function readProgression(
   // the window count is what bounds the work.
   const windows = Math.min(512, Math.ceil((to - from) / step));
 
-  const out: ChordSegment[] = [];
+  const labels: Array<Named | null> = [];
   for (let i = 0; i < windows; i++) {
     const start = from + i * step;
     const end = Math.min(to, start + step);
-    const weight = weigh(notes, start, end);
-    const found = name(weight, bassOf(notes, start, end), flats);
+    labels.push(name(weigh(notes, start, end), bassOf(notes, start, end), flats));
+  }
+
+  const kept = labels.slice(0, repeatingWindows(labels, perBar));
+
+  const out: ChordSegment[] = [];
+  for (let i = 0; i < kept.length; i++) {
+    const start = from + i * step;
+    const end = Math.min(to, start + step);
+    const found = kept[i]!;
 
     const last = out[out.length - 1];
     // Merge only an identical symbol, and merge two blanks as well: a rest is

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isPercussion, readProgression, spellsFlat, type ChordNote } from './chords.js';
+import { looksPercussive, readProgression, spellsFlat, type ChordNote } from './chords.js';
 
 /** A chord held for `duration` beats from `start`, as pitches. */
 function chord(start: number, duration: number, pitches: number[]): ChordNote[] {
@@ -7,6 +7,11 @@ function chord(start: number, duration: number, pitches: number[]): ChordNote[] 
 }
 
 const BAR = { beatsPerBar: 4, perBar: 2 };
+
+/** A triad held for the whole of one bar. */
+function triadAt(bar: number, pitches: number[]): ChordNote[] {
+  return pitches.map((pitch) => ({ pitch, start: bar * 4, duration: 4 }));
+}
 const symbols = (segments: { symbol: string | null }[]) => segments.map((s) => s.symbol);
 
 describe('readProgression', () => {
@@ -235,17 +240,96 @@ describe('spellsFlat', () => {
   });
 });
 
-describe('isPercussion', () => {
-  it('knows Live\'s drum instruments', () => {
-    expect(isPercussion('DrumGroupDevice')).toBe(true);
-    expect(isPercussion('InstrumentImpulse')).toBe(true);
+/** A clip of `count` notes, spread and held as given. */
+function clipOf(count: number, pitches: number[], duration: number): ChordNote[] {
+  return Array.from({ length: count }, (_, i) => ({
+    pitch: pitches[i % pitches.length]!,
+    start: i * 0.25,
+    duration,
+  }));
+}
+
+describe('looksPercussive', () => {
+  it("takes Live's own drum devices at their word", () => {
+    expect(looksPercussive([], 4, 'DrumGroupDevice')).toBe(true);
+    expect(looksPercussive([], 4, 'InstrumentImpulse')).toBe(true);
   });
 
-  it('lets anything it does not recognise make chords', () => {
-    // Guessing wrong this way leaves a chart incomplete; guessing wrong the
-    // other way leaves it confidently misspelled.
-    expect(isPercussion('Operator')).toBe(false);
-    expect(isPercussion('PluginDevice')).toBe(false);
-    expect(isPercussion('')).toBe(false);
+  // The numbers below are from a real set, where the drum track reported
+  // `PluginDevice` — indistinguishable from a synth by class alone — and was
+  // being merged into every chord.
+  it('hears a drum kit that calls itself a plugin', () => {
+    // 131 notes over 8 bars, 4 pitch classes, spread 41 semitones, hits.
+    const drums = clipOf(131, [21, 36, 38, 42, 62], 0.13);
+    expect(looksPercussive(drums, 8, 'PluginDevice')).toBe(true);
+  });
+
+  it('leaves every musical part in the same set alone', () => {
+    // Pad: 4 notes over 4 bars, held.
+    expect(looksPercussive(clipOf(4, [60, 64, 67, 69], 16), 4, 'PluginDevice')).toBe(false);
+    // Pluck: same shape, lower.
+    expect(looksPercussive(clipOf(4, [48, 52, 55], 15.98), 4, 'InstrumentGroupDevice')).toBe(false);
+    // Bass: 20 notes over 4 bars, short — but two pitch classes two semitones
+    // apart, which is the opposite of a kit's spread.
+    expect(looksPercussive(clipOf(20, [36, 38], 0.21), 4, 'InstrumentVector')).toBe(false);
+  });
+
+  it('needs all four signals, so any one alone is not enough', () => {
+    // Dense and short, but a narrow spread: a hi-hat-only part would be, too,
+    // and so would a tremolo. Not enough on its own.
+    expect(looksPercussive(clipOf(80, [60, 62], 0.2), 4)).toBe(false);
+    // Wide and sparse: a piano part covering the keyboard.
+    expect(looksPercussive(clipOf(8, [36, 60, 84], 2), 4)).toBe(false);
+    // Dense, wide, short — but every pitch class, so it is playing music. (The
+    // obvious fixture for this, minor thirds up the keyboard, is four pitch
+    // classes rather than twelve: a diminished cycle, which by these signals
+    // really is shaped like a kit.)
+    const chromatic = [36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 72];
+    expect(looksPercussive(clipOf(80, chromatic, 0.2), 4)).toBe(false);
+  });
+
+  it('says nothing about a clip with no notes', () => {
+    expect(looksPercussive([], 4, 'PluginDevice')).toBe(false);
+  });
+});
+
+describe('how long the chart is', () => {
+  it('contracts a four-bar progression written into an eight-bar clip', () => {
+    const four = [
+      ...triadAt(0, [57, 60, 64]),
+      ...triadAt(1, [53, 57, 60]),
+      ...triadAt(2, [48, 52, 55]),
+      ...triadAt(3, [55, 59, 62]),
+    ];
+    const twice = [...four, ...four.map((n) => ({ ...n, start: n.start + 16 }))];
+
+    const out = readProgression(twice, { from: 0, to: 32, ...BAR });
+    expect(symbols(out)).toEqual(['Am', 'F', 'C', 'G']);
+    expect(out[out.length - 1]!.to).toBe(16);
+  });
+
+  it('keeps a sixteen-bar progression at sixteen bars', () => {
+    const notes = [];
+    const roots = [[57, 60, 64], [53, 57, 60], [48, 52, 55], [55, 59, 62]];
+    for (let bar = 0; bar < 16; bar++) {
+      // Every fourth bar differs, so the sequence only repeats at sixteen.
+      const tri = bar === 11 ? [50, 53, 57] : roots[bar % 4]!;
+      notes.push(...triadAt(bar, tri));
+    }
+    const out = readProgression(notes, { from: 0, to: 64, ...BAR });
+    expect(out[out.length - 1]!.to).toBe(64);
+  });
+
+  it('does not contract a song sitting on one chord to a single bar', () => {
+    // True, and useless: nobody reads a one-bar chart, and how long you are on
+    // the chord is part of what the chart is saying.
+    const out = readProgression(chord(0, 32, [57, 60, 64]), { from: 0, to: 32, ...BAR });
+    expect(symbols(out)).toEqual(['Am']);
+    expect(out[0]!.to).toBe(16);
+  });
+
+  it('never contracts past a clip shorter than four bars', () => {
+    const out = readProgression(chord(0, 8, [57, 60, 64]), { from: 0, to: 8, ...BAR });
+    expect(out[0]!.to).toBe(8);
   });
 });
