@@ -139,46 +139,65 @@ in, unless the clip itself is shorter — in which case the clip wins.
 
 ## The degree colours
 
-A note's colour on the roll says **what it is doing in the key**, not what it is. The rule
-is one sentence: **a step of a fifth is a step of the colour wheel** — thirty degrees of hue
-per fifth, root at red.
+A note's colour on the roll says **what it is doing in the key**, not what it is. The rule is
+one sentence: **the seven notes of the scale are the rainbow, and an accidental is the blend
+of the two it sits between.**
 
 | degree | in C | hue | reads as |
 |---|---|---|---|
 | 1 | C | 0° | red |
-| b2 | Db | 210° | azure |
-| 2 | D | 60° | yellow |
-| b3 | Eb | 270° | violet |
-| 3 | E | 120° | green |
-| 4 | F | 330° | pink |
-| b5 | Gb | 180° | cyan |
-| 5 | G | 30° | orange |
-| b6 | Ab | 240° | blue |
-| 6 | A | 90° | lime |
-| b7 | Bb | 300° | magenta |
-| 7 | B | 150° | spring green |
+| b2 | Db | 15° | red-orange |
+| 2 | D | 30° | orange |
+| b3 | Eb | 42° | amber |
+| 3 | E | 55° | yellow |
+| 4 | F | 120° | green |
+| b5 | Gb | 165° | teal |
+| 5 | G | 210° | blue |
+| b6 | Ab | 235° | blue-indigo |
+| 6 | A | 260° | indigo |
+| b7 | Bb | 282° | purple |
+| 7 | B | 305° | violet |
 
-One sentence is the whole requirement, because a colour scheme is worth nothing to anybody
-who has not memorised it, and nobody memorises twelve arbitrary swatches. Somebody who knows
-the rule can reconstruct the table.
+Seven anchors and five midpoints, which is exactly twelve — there is no note between 3 and 4
+or between 7 and 1, because those are already a semitone apart. One sentence is the whole
+requirement, because a colour scheme is worth nothing to anybody who has not memorised it,
+and nobody memorises twelve arbitrary swatches.
 
-**Why the fifths and not `degree * 30`.** The chromatic mapping is a sentence too, and it is
-worse at both of the things this has to do:
+The anchors are **not evenly spaced**, because the rainbow is not: red, orange and yellow
+live in sixty degrees of the wheel and green to violet takes the rest. Spacing them evenly
+would give a degree 2 that is plainly yellow and a 3 that is green — a different scheme
+wearing the same name, and the name is how somebody remembers it.
 
-- A **flattened degree lands 150° from its natural** — b3 violet against a green 3, b7
-  magenta against a spring-green 7. Near enough opposite that major or minor is readable
-  across a stage without reading anything. Chromatically they are adjacent hues.
-- A **chromatic run alternates violently** rather than shading through three neighbouring
-  greens, which is what `degree * 30` does to 3, 4 and b3 — the three a walk-up is made of.
+### It went round the circle of fifths first
 
-**What it costs**, and it is worth naming: the root and the fifth land one step apart, red
-and orange, and those are the two a bass player reads most. The roll pays for that outside
-the colour — a root note is drawn with a ring round it — so the one degree that has to be
-unmistakable does not depend on hue at all. That is the general shape of the trade: hue
-carries eleven degrees well and the twelfth gets a second channel.
+Thirty degrees of hue per fifth: a tidier rule that produced worse charts, and the failure is
+worth keeping written down.
 
-Lightness moves with hue because it has to. At one fixed value a yellow 2 is glare and a
-blue b6 is a hole, and both have to carry dark text at the size a phone draws them.
+Spacing the *chromatic* degrees evenly does nothing for the seven that are actually in the
+song. On real material they clustered — a minor line of 1, b3, 4, 5, b7 came out red, violet,
+pink, orange, magenta. Five notes, two families, nothing readable from across a stage. The
+same line is now red, amber, green, blue, purple, because anchoring the naturals spreads
+whatever the song is made of, and a song is made of the scale.
+
+What that gives up is that **b3 sits next to 3, and b7 next to 7** — the pairs the fifths
+rule separated by 150°, which was the argument for it. It is the right thing to give up:
+which of the two a song uses is a property of the *song* rather than of the note, and it is
+already printed at the top of the chart in the key. Telling a b3 from a 3 at a glance is a
+question nobody is asking. Telling a b3 from a 5 is the question.
+
+The general lesson is that the scheme has to be optimised over **the notes that actually
+occur together**, which is a scale, and not over the twelve as though they were equally
+likely.
+
+### What it costs, and what pays for it
+
+The root and the second are a step apart in the warm end, and so are the sixth and the
+seventh in the cold one. A root note is drawn with a ring round it, so the one degree that has
+to be unmistakable does not depend on hue at all — hue carries eleven degrees well and the
+twelfth gets a second channel.
+
+Lightness moves with hue because it has to. At one fixed value a yellow 3 is glare and an
+indigo 6 is a hole, and both have to carry dark text at the size a phone draws them.
 
 `keyRoot` is what makes any of it possible, and it answers **null** rather than guessing at C
 for a key it cannot read. A roll coloured against the wrong root is worse than one not

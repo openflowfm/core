@@ -410,37 +410,66 @@ export function degreeName(degree: number): string {
 /**
  * The colour a scale degree is always drawn in.
  *
- * **A step of a fifth is a step of the colour wheel.** Thirty degrees of hue per
- * fifth, root at red, which makes the whole scheme one sentence long — the
- * property that matters, because it is only worth anything to somebody who has
- * memorised it.
+ * **The seven notes of the scale are the rainbow, and an accidental is the
+ * blend of the two it sits between.** 1 red, 2 orange, 3 yellow, 4 green,
+ * 5 blue, 6 indigo, 7 violet; b3 is the amber between orange and yellow, b5 the
+ * teal between green and blue. Seven anchors and five midpoints, which is
+ * exactly twelve.
  *
- * Two things fall out of that rule, and both are why it is the fifths and not
- * the chromatic ladder:
+ * **The first version went round the circle of fifths** — thirty degrees of hue
+ * per fifth — and it was a tidier rule that produced worse charts. A rule that
+ * spaces the *chromatic* degrees evenly does nothing for the seven that are
+ * actually in the song, and on real material they clustered: a minor line of
+ * 1, b3, 4, 5, b7 came out red, violet, pink, orange, magenta. Five notes, two
+ * families, nothing to read from across a stage.
  *
- * - **A flattened degree lands 150° from its natural** — b3 violet against a
- *   green 3, b7 magenta against a spring-green 7. Near enough opposite that
- *   major or minor is readable across a stage without reading anything.
- * - **A chromatic run alternates violently** instead of shading through three
- *   neighbouring greens, which is what `degree * 30` gives and what makes a
- *   walk-up unreadable.
+ * Anchoring the naturals instead spreads whatever the song is made of, because
+ * a song is made of the scale. That same minor line is now red, amber, green,
+ * blue, purple.
  *
- * The cost is that the root and the fifth land a step apart, red and orange, and
- * those are the two a bass player reads most. The roll pays for that outside the
- * colour: a root note is drawn with a ring round it, so the one degree that has
- * to be unmistakable does not depend on hue at all.
+ * What it gives up is that **b3 sits next to 3, and b7 next to 7** — the pairs
+ * the fifths rule separated by 150°. That is the right thing to give up: which
+ * of the two a song uses is a property of the *song*, not of the note, and it is
+ * already printed at the top of the chart in the key. Telling a b3 from a 3 at a
+ * glance is a question nobody is asking; telling a b3 from a 5 is the question,
+ * and it is the one this answers.
  *
- * Lightness moves with hue because it has to. At one fixed value a yellow 2 is
- * glare and a blue b6 is a hole, and both carry dark text at the size a phone
- * draws them.
+ * Lightness moves with hue because it has to. At one fixed value a yellow 3 is
+ * glare and an indigo 6 is a hole, and both have to carry dark text at the size
+ * a phone draws them.
  */
 export function degreeColor(degree: number): string {
-  const step = (pitchClass(degree) * 7) % 12;
-  return `hsl(${step * 30} 72% ${LIGHTNESS[step]}%)`;
+  const at = pitchClass(degree);
+  return `hsl(${HUE[at]} 78% ${LIGHTNESS[at]}%)`;
 }
 
-/** Perceived-brightness trim, indexed by the same step as the hue. */
-const LIGHTNESS = [62, 60, 56, 54, 54, 56, 60, 64, 68, 68, 66, 64];
+/** Where each degree of the scale sits, in semitones. */
+const NATURAL = [0, 2, 4, 5, 7, 9, 11];
+
+/**
+ * Roygbiv, as hues.
+ *
+ * Not evenly spaced, because the rainbow is not: red, orange and yellow live in
+ * sixty degrees of the wheel and green to violet takes the rest. Spacing them
+ * evenly would give a degree 2 that is plainly yellow and a 3 that is green,
+ * which is a different scheme wearing the same name — and the names are how
+ * somebody remembers it.
+ */
+const ROYGBIV = [0, 30, 55, 120, 210, 260, 305];
+
+/** The twelve hues: the seven above, and the midpoint for each note between. */
+const HUE = Array.from({ length: 12 }, (_, degree) => {
+  const at = NATURAL.indexOf(degree);
+  if (at >= 0) return ROYGBIV[at]!;
+  // Every accidental has a natural either side of it — there is none between
+  // 3 and 4, or between 7 and 1, because those are already a semitone apart.
+  const below = NATURAL.indexOf(degree - 1);
+  return (ROYGBIV[below]! + ROYGBIV[below + 1]!) / 2;
+});
+
+/** Perceived-brightness trim, indexed by degree. */
+const LIGHTNESS = [60, 55, 58, 57, 62, 52, 50, 58, 62, 66, 68, 64];
+
 
 /**
  * How many windows the progression actually takes before it repeats.

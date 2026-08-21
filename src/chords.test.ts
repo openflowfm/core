@@ -307,19 +307,29 @@ describe('degreeOf and degreeName', () => {
 });
 
 describe('degreeColor', () => {
-  it('moves thirty degrees of hue per fifth', () => {
-    expect(degreeColor(0)).toMatch(/^hsl\(0 /);
-    expect(degreeColor(7)).toMatch(/^hsl\(30 /);
-    expect(degreeColor(2)).toMatch(/^hsl\(60 /);
+  const hue = (degree: number) => Number(/^hsl\(([\d.]+) /.exec(degreeColor(degree))![1]);
+
+  it('gives the seven notes of the scale the rainbow, in order', () => {
+    const scale = [0, 2, 4, 5, 7, 9, 11].map(hue);
+    expect(scale).toEqual([0, 30, 55, 120, 210, 260, 305]);
+    // Roygbiv is an order before it is a palette: ascending degrees have to be
+    // ascending hues or the mnemonic does not survive contact with the roll.
+    expect([...scale].sort((a, b) => a - b)).toEqual(scale);
   });
 
-  it('puts a flattened degree across the wheel from its natural', () => {
-    // The property the whole scheme is for: major or minor is readable across a
-    // stage without reading anything.
-    const hue = (degree: number) => Number(/^hsl\((\d+) /.exec(degreeColor(degree))![1]);
-    expect(Math.abs(hue(3) - hue(4))).toBe(150);
-    expect(Math.abs(hue(10) - hue(11))).toBe(150);
-    expect(Math.abs(hue(8) - hue(9))).toBe(150);
+  it('blends an accidental between the two it sits between', () => {
+    // b3 is the amber between an orange 2 and a yellow 3.
+    expect(hue(3)).toBe((hue(2) + hue(4)) / 2);
+    expect(hue(6)).toBe((hue(5) + hue(7)) / 2);
+    expect(hue(10)).toBe((hue(9) + hue(11)) / 2);
+  });
+
+  it('spreads a minor line across the whole wheel', () => {
+    // The case that killed the circle-of-fifths version: 1, b3, 4, 5, b7 came
+    // out red, violet, pink, orange, magenta — five notes in two families.
+    const line = [0, 3, 5, 7, 10].map(hue);
+    const apart = line.slice(1).map((at, i) => at - line[i]!);
+    expect(Math.min(...apart)).toBeGreaterThan(40);
   });
 
   it('gives all twelve degrees a colour of their own', () => {
