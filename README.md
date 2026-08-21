@@ -15,6 +15,7 @@ need, not the file.** Entries without a link are covered fully by their line her
 | [`pattern.ts`](docs/pattern.md) | token template evaluation + song-title parsing | |
 | [`trackColumns.ts`](docs/trackColumns.md) | Live's flat track list → grid columns + group color bands | |
 | [`groupSlot.ts`](docs/groupSlot.md) | what a group track's clip slot shows at one scene | |
+| [`chords.ts`](docs/chords.md) | notes → a chord progression. **The only thing here that infers rather than reads** | ⚠ music is ambiguous; it declines |
 | [`trackStatus.ts`](docs/trackStatus.md) | the playing clip → Live's track status display: loop pie, countdown, take length | ⚠ beats vs seconds |
 | [`gridRange.ts`](docs/gridRange.md) | block selection + active-cell movement over the columns | |
 | [`ops.ts`](docs/ops.md) | building clip writes, reversing them, and applying them | the undo story |
