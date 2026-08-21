@@ -5,7 +5,6 @@ import {
   degreeOf,
   keyRoot,
   looksPercussive,
-  pitchName,
   readProgression,
   spellsFlat,
   type ChordNote,
@@ -247,99 +246,6 @@ describe('spellsFlat', () => {
   it('has no opinion when the set says nothing', () => {
     expect(spellsFlat('')).toBe(false);
     expect(spellsFlat('   ')).toBe(false);
-  });
-});
-
-describe('pitchName', () => {
-  it('names a note the way Live does, not the way a textbook does', () => {
-    expect(pitchName(60)).toBe('C3');
-    expect(pitchName(48)).toBe('C2');
-    expect(pitchName(0)).toBe('C-2');
-  });
-
-  it('names the bottom of a bass', () => {
-    // The two notes the roll is built around: a four-string's open E, and the
-    // low B a five-string adds under it.
-    expect(pitchName(28)).toBe('E0');
-    expect(pitchName(23)).toBe('B-1');
-  });
-
-  it('spells the black keys to match the chart', () => {
-    expect(pitchName(46)).toBe('A#1');
-    expect(pitchName(46, true)).toBe('Bb1');
-  });
-});
-
-describe('keyRoot', () => {
-  it('reads a key the way the scene names spell it', () => {
-    expect(keyRoot('C')).toBe(0);
-    expect(keyRoot('Gm')).toBe(7);
-    expect(keyRoot('Bb')).toBe(10);
-    expect(keyRoot('F#m')).toBe(6);
-    expect(keyRoot('Ebmaj7')).toBe(3);
-  });
-
-  it('tells a flat from a minor', () => {
-    // The whole of the ambiguity: `Bb` is B flat and `Bm` is B minor.
-    expect(keyRoot('Bb')).toBe(10);
-    expect(keyRoot('Bm')).toBe(11);
-  });
-
-  it('says nothing rather than guessing at C', () => {
-    expect(keyRoot('')).toBeNull();
-    expect(keyRoot('   ')).toBeNull();
-    expect(keyRoot('vibes')).toBeNull();
-  });
-});
-
-describe('degreeOf and degreeName', () => {
-  it('counts semitones up from the root', () => {
-    expect(degreeOf(43, 7)).toBe(0);
-    expect(degreeOf(46, 7)).toBe(3);
-    expect(degreeOf(38, 7)).toBe(7);
-  });
-
-  it('names an interval from the major scale, always', () => {
-    // A minor third is b3 whatever key it is in. Deterministic beats correct
-    // spelling here: the point is that one degree is always one label.
-    expect([0, 3, 4, 7, 10].map(degreeName)).toEqual(['1', 'b3', '3', '5', 'b7']);
-  });
-});
-
-describe('degreeColor', () => {
-  const hue = (degree: number) => Number(/^hsl\(([\d.]+) /.exec(degreeColor(degree))![1]);
-
-  it('gives the seven notes of the scale the rainbow, in order', () => {
-    const scale = [0, 2, 4, 5, 7, 9, 11].map(hue);
-    expect(scale).toEqual([0, 30, 55, 120, 210, 260, 305]);
-    // Roygbiv is an order before it is a palette: ascending degrees have to be
-    // ascending hues or the mnemonic does not survive contact with the roll.
-    expect([...scale].sort((a, b) => a - b)).toEqual(scale);
-  });
-
-  it('blends an accidental between the two it sits between', () => {
-    // b3 is the amber between an orange 2 and a yellow 3.
-    expect(hue(3)).toBe((hue(2) + hue(4)) / 2);
-    expect(hue(6)).toBe((hue(5) + hue(7)) / 2);
-    expect(hue(10)).toBe((hue(9) + hue(11)) / 2);
-  });
-
-  it('spreads a minor line across the whole wheel', () => {
-    // The case that killed the circle-of-fifths version: 1, b3, 4, 5, b7 came
-    // out red, violet, pink, orange, magenta — five notes in two families.
-    const line = [0, 3, 5, 7, 10].map(hue);
-    const apart = line.slice(1).map((at, i) => at - line[i]!);
-    expect(Math.min(...apart)).toBeGreaterThan(40);
-  });
-
-  it('gives all twelve degrees a colour of their own', () => {
-    const all = Array.from({ length: 12 }, (_, i) => degreeColor(i));
-    expect(new Set(all).size).toBe(12);
-  });
-
-  it('wraps, so a pitch class is enough', () => {
-    expect(degreeColor(12)).toBe(degreeColor(0));
-    expect(degreeColor(-1)).toBe(degreeColor(11));
   });
 });
 

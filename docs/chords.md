@@ -15,7 +15,7 @@ wrong; this can be wrong because music is ambiguous. So the module is built to d
 **`readProgression` and `looksPercussive` have no caller.** The chart drew inferred chord
 symbols and now draws the bass track's clip note for note — see
 [the bass roll](../../chart/docs/reading.md) for why. What the phone still uses from this
-file is the naming: `noteName`, `pitchName`, `isBlackKey` and `spellsFlat` label the roll's
+file is the naming: `noteName`, `isBlackKey` and `spellsFlat` label the roll's
 keyboard in the spelling the set's own key states.
 
 It is kept because it is pure, tested and the question it answers has not gone away: the
@@ -202,19 +202,6 @@ indigo 6 is a hole, and both have to carry dark text at the size a phone draws t
 `keyRoot` is what makes any of it possible, and it answers **null** rather than guessing at C
 for a key it cannot read. A roll coloured against the wrong root is worse than one not
 coloured at all, because the colours would still look deliberate.
-
-## Naming a note the way Live does
-
-`pitchName` puts an octave on a pitch, and it uses **Live's convention rather than the
-scientific one** — 60 is `C3`, so a four-string bass's open E is `E0` and the low B a
-five-string adds under it is `B-1`. Both look a semitone-and-an-octave wrong written down,
-and both are what Live shows.
-
-The rule is that a label on a chart must survive being checked. Somebody who does not
-believe the roll will open the clip in Live, and a gutter disagreeing with Live's own piano
-roll would make the chart the thing that was wrong. `widgets/param/format.ts` has its own
-copy of this for parameter values, because rule 1 keeps the two modules from importing each
-other.
 
 ## Imports nothing
 
