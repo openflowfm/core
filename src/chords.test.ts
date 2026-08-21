@@ -181,6 +181,33 @@ describe('readProgression', () => {
   });
 });
 
+describe('what a chord is, as against what it is called', () => {
+  it('carries the pitch classes it is built from, root first', () => {
+    const [am] = readProgression(chord(0, 4, [57, 60, 64]), { from: 0, to: 4, ...BAR });
+    // A, C, E — root first, then ascending.
+    expect(am).toMatchObject({ symbol: 'Am', root: 'A', rootClass: 9, tones: [9, 0, 4] });
+  });
+
+  it('gives the template\'s tones rather than the pitches anybody played', () => {
+    // The same chord voiced over three octaves with the third doubled is still
+    // three pitch classes — a chart is not a transcription.
+    // C2 E3 G4 E5 C6 — three pitch classes, five notes, four octaves.
+    const spread = readProgression(chord(0, 4, [36, 52, 67, 76, 84]), { from: 0, to: 4, ...BAR });
+    expect(spread[0]).toMatchObject({ symbol: 'C', tones: [0, 4, 7] });
+  });
+
+  it('has nothing to draw where it had nothing to name', () => {
+    const [quiet] = readProgression([], { from: 0, to: 4, ...BAR });
+    expect(quiet).toMatchObject({ symbol: null, root: null, rootClass: null, tones: [] });
+  });
+
+  it('roots a slash chord on the chord, not on the bass under it', () => {
+    // C/E is still rooted on C — the bass note is in the name, not the root.
+    const [inverted] = readProgression(chord(0, 4, [52, 60, 67]), { from: 0, to: 4, ...BAR });
+    expect(inverted).toMatchObject({ symbol: 'C/E', rootClass: 0, tones: [0, 4, 7] });
+  });
+});
+
 describe('spellsFlat', () => {
   it('follows a key that is written with one', () => {
     expect(spellsFlat('Bb')).toBe(true);

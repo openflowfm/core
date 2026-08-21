@@ -71,6 +71,21 @@ whose instrument is unrecognised is **not** treated as percussion: an unknown sy
 still make chords, and guessing wrong in that direction leaves a chart incomplete rather
 than misspelled.
 
+## What a chord *is*, beside what it is called
+
+A segment carries `tones` and `rootClass` as well as `symbol` and `root`, and the pair is
+deliberate: the strings are what to print and the numbers are where to draw. Anything
+plotting a keyboard needs a position, and deriving one back out of the text `Bb` would mean
+re-parsing a name this module just finished spelling.
+
+They are the **template's** tones rather than the pitches anybody played. A voicing spread
+over three octaves with the third doubled is the same chord, and drawing it literally makes
+a transcription rather than something to read at a glance.
+
+`noteName` and `isBlackKey` are here for the same reason `spellsFlat` is — so a reader
+drawing a keyboard labels its rows with the spelling the symbols use. A chart that says
+`Bb` beside a row labelled `A#` asks somebody to do the conversion mid-song.
+
 `spellsFlat` takes the key the scene names already state, so the chart reads `Bb` where the
 set says `Bb` rather than `A#`.
 

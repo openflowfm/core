@@ -35,6 +35,26 @@ export interface ChordSegment {
   symbol: string | null;
   /** The root as written, or null with the symbol. */
   root: string | null;
+  /**
+   * The root's pitch class, 0–11, or null with the symbol.
+   *
+   * Beside the written root rather than instead of it, because they answer
+   * different questions: `root` is what to print, and this is where to draw. A
+   * reader plotting a bass line needs a position on a keyboard, and deriving
+   * one back from `Bb` would mean parsing a name this module just finished
+   * spelling.
+   */
+  rootClass: number | null;
+  /**
+   * The chord's pitch classes, root first then ascending.
+   *
+   * What the chord *is*, as against what it is called. Empty where nothing was
+   * spelled. These are the template's tones rather than the pitches anybody
+   * played: a voicing spread over three octaves with the third doubled is the
+   * same chord, and a chart that drew it literally would be a transcription
+   * rather than something to read at a glance.
+   */
+  tones: number[];
   /** 0–1. Below `SURE` the symbol is null; above it, how clean the match was. */
   confidence: number;
 }
@@ -164,6 +184,8 @@ function bassOf(notes: readonly ChordNote[], from: number, to: number): number |
 interface Named {
   symbol: string;
   root: string;
+  rootClass: number;
+  tones: number[];
   confidence: number;
 }
 
@@ -222,7 +244,30 @@ function name(
   // would be noise, and writing the inversion of every voicing would bury the
   // progression in detail nobody reading a chart off a phone needs.
   const slash = bass !== null && bass !== best.root ? `/${(flats ? FLAT : SHARP)[bass]!}` : '';
-  return { symbol: `${root}${best.template.name}${slash}`, root, confidence };
+  return {
+    symbol: `${root}${best.template.name}${slash}`,
+    root,
+    rootClass: best.root,
+    tones: best.template.tones.map((step) => (best.root + step) % 12),
+    confidence,
+  };
+}
+
+/**
+ * A pitch class as a note name, spelled the way the chart is.
+ *
+ * Exported so a reader drawing a keyboard labels its rows with the same
+ * spelling the symbols use. A chart that says `Bb` beside a row labelled `A#`
+ * is asking somebody to do the conversion mid-song.
+ */
+export function noteName(pc: number, flats = false): string {
+  return (flats ? FLAT : SHARP)[pitchClass(pc)] ?? '';
+}
+
+/** Whether a pitch class is a black key, for drawing one. */
+export function isBlackKey(pc: number): boolean {
+  const at = pitchClass(pc);
+  return at === 1 || at === 3 || at === 6 || at === 8 || at === 10;
 }
 
 /**
@@ -309,6 +354,8 @@ export function readProgression(
       to: end,
       symbol: found?.symbol ?? null,
       root: found?.root ?? null,
+      rootClass: found?.rootClass ?? null,
+      tones: found ? found.tones : [],
       confidence: found?.confidence ?? 0,
     });
   }
