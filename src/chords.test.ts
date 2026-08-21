@@ -109,6 +109,29 @@ describe('readProgression', () => {
     expect(out[0]).toMatchObject({ from: 0, to: 8, symbol: null, root: null, confidence: 0 });
   });
 
+  it('keeps the triad when a melody brushes a note that is not in it', () => {
+    // A held Am with a line over it that touches F#. Naming that bar Am6 is how
+    // a chart ends up renaming the chord every time somebody plays a passing
+    // tone — and the sixth is not what the rhythm section is playing.
+    const held = chord(0, 4, [57, 60, 64]);
+    const line = [69, 71, 72, 66, 74, 71, 69, 67].map((pitch, i) => ({
+      pitch,
+      start: i * 0.5,
+      duration: 0.5,
+    }));
+    expect(symbols(readProgression([...held, ...line], { from: 0, to: 4, ...BAR }))).toEqual([
+      'Am',
+    ]);
+  });
+
+  it('still hears a seventh that is actually being held', () => {
+    // The complexity prior must not swallow a real one: four notes of equal
+    // weight spell Am7 far more cleanly than Am plus an unexplained G.
+    expect(symbols(readProgression(chord(0, 4, [57, 60, 64, 67]), { from: 0, to: 4, ...BAR }))).toEqual(
+      ['Am7'],
+    );
+  });
+
   it('is not fooled by a passing sixteenth against a held chord', () => {
     // Duration weighting: the F# sounds, but for a fraction of what the triad
     // does, so it must not turn C into something else.

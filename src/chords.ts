@@ -105,6 +105,20 @@ const EXTRA_COST = 0.55;
  * that distinguishes a whole family of chords from another.
  */
 const BASS_BONUS = 0.18;
+/**
+ * Per template tone beyond a triad — a preference for the simpler answer.
+ *
+ * Without it, any extra pitch class sounding anywhere in the window makes the
+ * chord that *contains* it beat the triad that doesn't, because covering it is
+ * worth more than the penalty for leaving it out. A melody line over a held Am
+ * therefore reads as Am6 for the bar it happens to touch an F#, and a chart
+ * that renames the chord every time somebody plays a passing tone is a chart
+ * nobody can follow.
+ *
+ * Small enough that a seventh actually being held still wins: four notes of
+ * equal weight spell Am7 far more cleanly than Am plus an unexplained G.
+ */
+const COMPLEXITY_COST = 0.14;
 
 /** Pitch class, 0–11, for any MIDI note number. */
 function pitchClass(pitch: number): number {
@@ -189,7 +203,8 @@ function name(
       const score =
         covered -
         extra * EXTRA_COST -
-        missing * MISSING_COST +
+        missing * MISSING_COST -
+        Math.max(0, tones.size - 3) * COMPLEXITY_COST +
         (bass !== null && bass === root ? BASS_BONUS : 0);
 
       // Strictly greater, so the simplest template that ties wins — see the
