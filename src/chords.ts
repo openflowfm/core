@@ -429,6 +429,53 @@ export function degreeColor(degree: number): string {
   return `hsl(${HUE[at]} 78% ${LIGHTNESS[at]}%)`;
 }
 
+/**
+ * The colour a **key** is drawn in, from the note it is built on.
+ *
+ * A different question from `degreeColor`, and worth saying how. That one is
+ * relative — it asks what a note is doing in the song, so the root of every song
+ * is the same red. This one is absolute: it asks *which* song this is, so a set
+ * played twice looks the same both nights and the key somebody half-remembers
+ * from Tuesday is the colour it was on Tuesday. The two schemes are on one
+ * screen on purpose, and they are different colours of the same note for the
+ * same reason a note has two names.
+ *
+ * **Twelve hues, thirty degrees apart, in chromatic order** — C red, D yellow,
+ * E green, G blue. Even spacing, because unlike a scale there is nothing uneven
+ * to follow: all twelve are keys and a set uses them at whatever rate it uses
+ * them.
+ *
+ * The circle of fifths was the other candidate and it fails here for the same
+ * shape of reason it failed for degrees, from the other end. Songs in a set
+ * cluster on the circle — G, D, A, C, F is an ordinary night — so a fifths
+ * mapping would paint most of a set one colour and leave the rest of the wheel
+ * for keys nobody plays. Chromatic order spreads exactly the keys a set is made
+ * of, as anchoring the naturals spreads the notes a song is made of.
+ *
+ * **The root only.** C and Cm are the same colour, because the letter beside it
+ * already says which and the colour is answering "the same key as what".
+ */
+export function keyColor(root: number): string {
+  const at = pitchClass(root);
+  return `hsl(${at * 30} 75% ${KEY_LIGHTNESS[at]}%)`;
+}
+
+/**
+ * Perceived-brightness trim, indexed by pitch class, for letters on the ground.
+ *
+ * Same necessity as `LIGHTNESS` and a different curve, because these are drawn
+ * as text rather than as blocks under dark text: at one fixed value a yellow D
+ * is glare and a blue Ab is a smudge at the size a key is printed.
+ *
+ * **Half the trim, not all of it.** Levelling the twelve exactly costs about two
+ * and a half times in brightness and takes the yellow down to an olive and the
+ * red up to a pink on the way — twelve equal greys wearing hues. Meeting in the
+ * middle leaves under twice between the lightest and the darkest, which nothing
+ * on a stage notices, and every key still looks like the colour it is named
+ * after.
+ */
+const KEY_LIGHTNESS = [72, 62, 48, 50, 51, 52, 51, 69, 78, 76, 71, 71];
+
 /** Where each degree of the scale sits, in semitones. */
 const NATURAL = [0, 2, 4, 5, 7, 9, 11];
 

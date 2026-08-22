@@ -203,6 +203,33 @@ indigo 6 is a hole, and both have to carry dark text at the size a phone draws t
 for a key it cannot read. A roll coloured against the wrong root is worse than one not
 coloured at all, because the colours would still look deliberate.
 
+## The key's own colour
+
+`keyColor` answers a different question from the one above, and the difference is the whole
+of it. The degree colours are **relative**: they say what a note is doing in the song, so the
+root of every song is the same red. `keyColor` is **absolute**: it says *which* song this is,
+so the key printed at the top is the same colour every time that key comes round, and a set
+looks the same on Thursday as it did on Tuesday. Both are on the chart at once on purpose.
+
+**Twelve hues, thirty degrees apart, in chromatic order.** C red, D yellow, E green, G blue.
+Evenly spaced this time, because unlike a scale there is nothing uneven to follow — all
+twelve are keys, and a set uses them at whatever rate it uses them.
+
+The circle of fifths lost here too, and from the other end. Songs in a set **cluster** on the
+circle: G, D, A, C, F is an ordinary night. A fifths mapping would paint most of a set one
+colour and spend the rest of the wheel on keys nobody played, where chromatic order spreads
+exactly the keys a set is made of — the same argument as anchoring the naturals, which
+spreads the notes a song is made of.
+
+The colour is the **root only**, so C and Cm match. The letter beside it already says which
+of the two, and what the colour is answering is "the same key as what".
+
+Its lightness trim is **half of a full levelling**. Making the twelve equal in brightness
+costs about two and a half times end to end and turns the yellow into an olive and the red
+into a pink on the way — twelve equal greys wearing hues. Meeting in the middle leaves under
+twice, which nothing on a stage notices, and every key still looks like the colour it is
+named after.
+
 ## Imports nothing
 
 Like `trackStatus.ts` and `livePalette.ts`, and for the same reason: Node's type stripping

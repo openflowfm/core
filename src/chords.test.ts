@@ -3,6 +3,7 @@ import {
   degreeColor,
   degreeName,
   degreeOf,
+  keyColor,
   keyRoot,
   looksPercussive,
   readProgression,
@@ -246,6 +247,20 @@ describe('spellsFlat', () => {
   it('has no opinion when the set says nothing', () => {
     expect(spellsFlat('')).toBe(false);
     expect(spellsFlat('   ')).toBe(false);
+  });
+});
+
+describe('keyColor', () => {
+  it('gives the twelve keys twelve colours', () => {
+    const all = new Set(Array.from({ length: 12 }, (_, root) => keyColor(root)));
+    expect(all.size).toBe(12);
+  });
+
+  it('is the note and not the octave it was found in', () => {
+    // The root arrives from `keyRoot` as a pitch class, but a caller holding a
+    // real pitch should get the same answer for the same note.
+    expect(keyColor(7)).toBe(keyColor(43));
+    expect(keyColor(0)).toBe(keyColor(-12));
   });
 });
 
