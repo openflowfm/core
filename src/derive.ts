@@ -10,7 +10,7 @@
 // subtly wrong on a real set, and it's the one that can be tested without Live
 // running at all.
 
-import type { CompiledPattern } from './namePattern.js';
+import type { CompiledPattern } from './namePattern.ts';
 
 /**
  * Live's own bound, lifted from an assertion in the 12.4.3 binary:
@@ -26,7 +26,7 @@ import type { CompiledPattern } from './namePattern.js';
  */
 export const MIN_TEMPO = 20;
 
-/** The scene fields derivation reads. Structurally typed over `BSV.Scene`. */
+/** The scene fields derivation reads. Structurally typed over `OpenFlow.Scene`. */
 export interface SceneInput {
   i: number;
   name: string;

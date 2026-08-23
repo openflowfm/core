@@ -64,8 +64,8 @@ import {
   withRole,
   type SceneFields,
   type SceneWriteOp,
-} from './roles.js';
-import { isSongTag, SONG_TAG_SHAPE } from './songTags.js';
+} from './roles.ts';
+import { isSongTag, SONG_TAG_SHAPE } from './songTags.ts';
 
 export interface SceneTitle {
   song: string;

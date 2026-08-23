@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EMPTY_GROUP_SLOT, groupSlot, type SlotClip } from './groupSlot.js';
+import { EMPTY_GROUP_SLOT, groupSlot, type SlotClip } from './groupSlot.ts';
 
 /** A clip lookup over `track -> color`. */
 const at = (m: Record<number, number>) => (t: number): SlotClip | undefined =>

@@ -55,13 +55,13 @@ export interface SceneMovePlan {
   clips: number;
 }
 
-/** The clip fields the planner reads. Structurally typed over `BSV.Clip`. */
+/** The clip fields the planner reads. Structurally typed over `OpenFlow.Clip`. */
 export interface MoveClipInput {
   t: number;
   s: number;
 }
 
-/** The track fields the planner reads. Structurally typed over `BSV.Track`. */
+/** The track fields the planner reads. Structurally typed over `OpenFlow.Track`. */
 export interface MoveTrackInput {
   i: number;
   isGroup: boolean;

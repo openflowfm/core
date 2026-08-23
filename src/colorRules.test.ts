@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { planSongColors, type SongColorInput } from './colorRules.js';
+import { planSongColors, type SongColorInput } from './colorRules.ts';
 
 function songs(...spec: Array<[string, string, number | null]>): SongColorInput[] {
   return spec.map(([songKey, key, bpm]) => ({ songKey, key, bpm }));

@@ -25,7 +25,7 @@
 // Pure and transport-free, like the rest of core/. Nothing here knows what a
 // palette index means to Live; colors travel through as opaque numbers.
 
-import { MIN_TEMPO } from './derive.js';
+import { MIN_TEMPO } from './derive.ts';
 
 /** A role in the vocabulary, and the palette slot it colors clips with. */
 export interface Role {
@@ -236,7 +236,7 @@ export function findRoleProblems(draft: readonly Role[]): Set<number> {
 //
 // The scene equivalent of ops.ts, and here for the same reason: assembling and
 // reversing writes is exactly the logic that has to be provable without Live
-// running. Structurally typed rather than importing BSV.Scene / BSV.SceneOp so
+// running. Structurally typed rather than importing OpenFlow.Scene / OpenFlow.SceneOp so
 // core/ stays free of the wire types.
 
 export interface SceneFields {
@@ -274,7 +274,7 @@ export interface SceneWriteOp {
 /**
  * A scene as the snapshot holds it — addressed `i`, the way every scene arrives
  * from the walk, as against the `s` that everything writing to one uses.
- * Structurally typed over `BSV.Scene` rather than importing it, for the reason
+ * Structurally typed over `OpenFlow.Scene` rather than importing it, for the reason
  * `ops.ts` gives.
  */
 export interface SceneRow {

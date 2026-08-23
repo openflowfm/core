@@ -1,0 +1,10 @@
+{
+  "name": "@openflow/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Domain logic with no React, no transport and nothing Live-specific: the only code testable without Ableton running.",
+  "exports": {
+    "./*": "./src/*"
+  }
+}

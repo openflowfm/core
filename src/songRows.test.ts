@@ -4,10 +4,10 @@ import {
   blockTrackRoles,
   mergeShapes,
   songRows,
-} from './songRows.js';
-import { derive, type Derivation, type SceneInput } from './derive.js';
-import { buildSetModel } from './setModel.js';
-import { compilePattern, SCENE_PATTERNS } from './namePattern.js';
+} from './songRows.ts';
+import { derive, type Derivation, type SceneInput } from './derive.ts';
+import { buildSetModel } from './setModel.ts';
+import { compilePattern, SCENE_PATTERNS } from './namePattern.ts';
 
 /** The set's own pattern list, so this can't drift from what the app reads. */
 const PATTERN = SCENE_PATTERNS;
@@ -19,7 +19,7 @@ const scene = (i: number, name: string, tempo = -1, colorIndex = -1): SceneInput
 });
 
 /** The model the bridge would ship for a derivation, and the layout from it. */
-const modelOf = (d: Derivation): BSV.SetModel => buildSetModel(d, 1);
+const modelOf = (d: Derivation): OpenFlow.SetModel => buildSetModel(d, 1);
 const layoutOf = (d: Derivation, collapsed?: ReadonlySet<string>) =>
   songRows(modelOf(d), d.scenes.map((sc) => sc.s), collapsed);
 

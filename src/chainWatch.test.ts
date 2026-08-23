@@ -5,7 +5,7 @@ import {
   sameChainWatches,
   validChainWatch,
   type ChainWatch,
-} from './chainWatch.js';
+} from './chainWatch.ts';
 
 const w = (t: number, path: number[], open: number[]): ChainWatch => ({ t, path, open });
 

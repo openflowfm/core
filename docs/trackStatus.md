@@ -27,7 +27,7 @@ clip position while the track is actually monitoring input would be worse than a
 
 ## The three forms
 
-`trackStatus(clip, tempo)` takes a [`BSV.PlayingClip`](../../protocol/global.d.ts) — the
+`trackStatus(clip, tempo)` takes a [`OpenFlow.PlayingClip`](../../protocol/global.d.ts) — the
 facts `lom.ts` reads off the playing clip — and Live's song tempo, and returns one of:
 
 | kind | carries | when |

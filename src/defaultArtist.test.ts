@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { derive, type SceneInput } from './derive.js';
-import { SCENE_PATTERNS } from './namePattern.js';
-import { planDefaultArtist } from './defaultArtist.js';
-import type { SceneFields } from './roles.js';
+import { derive, type SceneInput } from './derive.ts';
+import { SCENE_PATTERNS } from './namePattern.ts';
+import { planDefaultArtist } from './defaultArtist.ts';
+import type { SceneFields } from './roles.ts';
 
 const scene = (i: number, name: string): SceneInput => ({
   i,

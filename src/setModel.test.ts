@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { derive, type SceneInput } from './derive.js';
-import { compilePattern, SCENE_PATTERNS } from './namePattern.js';
-import { buildSetModel, songAt } from './setModel.js';
+import { derive, type SceneInput } from './derive.ts';
+import { compilePattern, SCENE_PATTERNS } from './namePattern.ts';
+import { buildSetModel, songAt } from './setModel.ts';
 
 function scene(i: number, name: string, tempo = -1, colorIndex = -1): SceneInput {
   return { i, name, tempo, colorIndex };
@@ -125,7 +125,7 @@ describe('buildSetModel', () => {
 
   it('survives the round trip it exists to make', () => {
     const m = model([scene(0, '@Bm NIGHTFALL - THE AVIATORS {COVER}', 128, 3)]);
-    const wire: BSV.SetModel = JSON.parse(JSON.stringify(m));
+    const wire: OpenFlow.SetModel = JSON.parse(JSON.stringify(m));
     expect(wire).toEqual(m);
     expect(songAt(wire, 0)?.name).toBe('NIGHTFALL');
   });

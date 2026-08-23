@@ -6,7 +6,7 @@
 // name and color, so the "before" side of a write is known without asking Live
 // for it.
 //
-// Structurally typed rather than importing BSV.Clip / BSV.ApplyOp: this needs
+// Structurally typed rather than importing OpenFlow.Clip / OpenFlow.ApplyOp: this needs
 // four fields, and keeping core free of the wire types is what lets it be tested
 // without any transport around it.
 

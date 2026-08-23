@@ -6,7 +6,7 @@ import {
   parseNumOr,
   parseObjectRef,
   parseStr,
-} from './lomAtoms.js';
+} from './lomAtoms.ts';
 
 describe('parseNumOr', () => {
   it('reads a real number', () => {

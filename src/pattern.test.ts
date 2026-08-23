@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_CLIP_PATTERN, render, tokensIn, unknownTokens } from './pattern.js';
+import { DEFAULT_CLIP_PATTERN, render, tokensIn, unknownTokens } from './pattern.ts';
 
 it('ships the set-wide clip naming convention', () => {
   expect(DEFAULT_CLIP_PATTERN).toBe('{key} {role} {track}');

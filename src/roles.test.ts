@@ -22,8 +22,8 @@ import {
   type Role,
   type SceneFields,
   type SceneRow,
-} from './roles.js';
-import { MIN_TEMPO } from './derive.js';
+} from './roles.ts';
+import { MIN_TEMPO } from './derive.ts';
 
 describe('roleIn', () => {
   it('reads a trailing tag', () => {

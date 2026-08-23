@@ -8,7 +8,7 @@ import {
   patternErrors,
   SCENE_TOKENS,
   type TokenRegistry,
-} from './namePattern.js';
+} from './namePattern.ts';
 
 /**
  * The convention the app writes today. Deliberately the exported constant and

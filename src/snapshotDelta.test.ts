@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canApplyDelta, mergeRows, mergeTrackDelta } from './snapshotDelta.js';
+import { canApplyDelta, mergeRows, mergeTrackDelta } from './snapshotDelta.ts';
 
 interface Clip {
   t: number;

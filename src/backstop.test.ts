@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MIN_INTERVAL_MS, shouldWalk, STALE_MS, type Staleness } from './backstop.js';
+import { MIN_INTERVAL_MS, shouldWalk, STALE_MS, type Staleness } from './backstop.ts';
 
 const MINUTE = 60_000;
 

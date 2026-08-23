@@ -4,7 +4,7 @@ import {
   planClipMove,
   type ClipAt,
   type ClipMoveTrack,
-} from './clipMove.js';
+} from './clipMove.ts';
 
 /** Four MIDI tracks, then two audio, then a group at 6. */
 const TRACKS: ClipMoveTrack[] = [

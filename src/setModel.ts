@@ -18,8 +18,8 @@
 // anything that reads the clips — `blockTrackRoles`, say — and every clip edit
 // in the set rebuilds the whole model.
 
-import { songKey, type Derivation } from './derive.js';
-import { showFact, songFacts } from './songRows.js';
+import { songKey, type Derivation } from './derive.ts';
+import { showFact, songFacts } from './songRows.ts';
 
 /**
  * The derived layer from one derivation, ready to ship.
@@ -29,8 +29,8 @@ import { showFact, songFacts } from './songRows.js';
  * rather than read from the derivation because a derivation is a pure function
  * of scene rows and has no idea which revision produced them.
  */
-export function buildSetModel(d: Derivation, rev: number): BSV.SetModel {
-  const songs: BSV.SongEntry[] = d.songs.map((song) => {
+export function buildSetModel(d: Derivation, rev: number): OpenFlow.SetModel {
+  const songs: OpenFlow.SongEntry[] = d.songs.map((song) => {
     const facts = songFacts(song);
     return {
       songKey: songKey(song.name),
@@ -64,9 +64,9 @@ export function buildSetModel(d: Derivation, rev: number): BSV.SetModel {
   // scene's role writing a regex of its own against a convention it did not
   // own. A scene that states nothing gets no entry, so a set named only at the
   // song level pays nothing for this.
-  const factsByScene: Record<string, BSV.SceneFacts> = {};
+  const factsByScene: Record<string, OpenFlow.SceneFacts> = {};
   for (const scene of d.scenes) {
-    const facts: BSV.SceneFacts = {};
+    const facts: OpenFlow.SceneFacts = {};
     if (scene.role) facts.role = scene.role;
     if (scene.fields?.key) facts.key = scene.fields.key;
     if (scene.fields?.bpm) facts.bpm = scene.fields.bpm;
@@ -84,7 +84,7 @@ export function buildSetModel(d: Derivation, rev: number): BSV.SetModel {
  * as `{}`, silently, with every lookup then missing. Consumers that do this in
  * a loop should build their own `Map` once.
  */
-export function songAt(model: BSV.SetModel, scene: number): BSV.SongEntry | undefined {
+export function songAt(model: OpenFlow.SetModel, scene: number): OpenFlow.SongEntry | undefined {
   const key = model.songByScene[String(scene)];
   return key === undefined ? undefined : model.songs.find((s) => s.songKey === key);
 }

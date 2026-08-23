@@ -9,7 +9,7 @@ import {
   readProgression,
   spellsFlat,
   type ChordNote,
-} from './chords.js';
+} from './chords.ts';
 
 /** A chord held for `duration` beats from `start`, as pitches. */
 function chord(start: number, duration: number, pitches: number[]): ChordNote[] {

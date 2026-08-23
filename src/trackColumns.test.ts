@@ -5,7 +5,7 @@ import {
   membersOf,
   startsBand,
   type GroupableTrack,
-} from './trackColumns.js';
+} from './trackColumns.ts';
 
 /** `G` marks a group track; the number is its parent index, -1 for none. */
 function mk(spec: Array<[string, boolean, number]>): GroupableTrack[] {

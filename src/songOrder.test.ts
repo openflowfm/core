@@ -4,7 +4,7 @@ import {
   sortSongOrder,
   type OrderedScene,
   type SortableSong,
-} from './songOrder.js';
+} from './songOrder.ts';
 
 /** `'a a b - b'` — one scene per token, `-` for a scene with no song. */
 function set(spec: string): OrderedScene[] {

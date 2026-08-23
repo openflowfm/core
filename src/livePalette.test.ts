@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LIVE_PALETTE } from './livePalette.js';
+import { LIVE_PALETTE } from './livePalette.ts';
 
 describe('the embedded Live palette', () => {
   it('contains the complete, distinct 14 × 5 color table', () => {

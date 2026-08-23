@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cellsInBlock, moveActive, stepCell, type Cell } from './gridRange.js';
+import { cellsInBlock, moveActive, stepCell, type Cell } from './gridRange.ts';
 
 const key = (c: Cell) => `${c.t}:${c.s}`;
 

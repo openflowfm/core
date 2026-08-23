@@ -10,9 +10,9 @@ import {
   splitsAsArtist,
   titleOf,
   titleOps,
-} from './sceneTitle.js';
-import { compilePattern, DEFAULT_SCENE_PATTERN } from './namePattern.js';
-import type { SceneFields } from './roles.js';
+} from './sceneTitle.ts';
+import { compilePattern, DEFAULT_SCENE_PATTERN } from './namePattern.ts';
+import type { SceneFields } from './roles.ts';
 
 describe('parseTitle', () => {
   it('splits the full convention', () => {

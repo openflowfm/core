@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { brightness, contrast, hex, inkOn, legibleOn, luminance } from './color.js';
+import { brightness, contrast, hex, inkOn, legibleOn, luminance } from './color.ts';
 
 const PANEL = 0x0a0a0b; // --bg, what scene names are painted on
 

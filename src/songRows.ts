@@ -16,8 +16,8 @@
 // already rendered. `blockTrackRoles` below reads the clips instead, which is
 // exactly why it is not in the model; see `core/docs/setModel.md`.
 
-import type { DerivedSong, SongBlock } from './derive.js';
-import { roleIn, roleKey } from './roles.js';
+import type { DerivedSong, SongBlock } from './derive.ts';
+import { roleIn, roleKey } from './roles.ts';
 
 /**
  * One header row. Every field is a primitive on purpose: this crosses into a
@@ -139,7 +139,7 @@ export function songFacts(
  * a scene belonging to no song is still a row you can select and name.
  */
 export function songRows(
-  model: BSV.SetModel,
+  model: OpenFlow.SetModel,
   scenes: readonly number[],
   collapsed: ReadonlySet<string> = new Set(),
 ): SongRows {
@@ -185,7 +185,7 @@ export function songRows(
   return { headers, hidden, rows };
 }
 
-/** The clip fields a shape needs. Structurally typed over `BSV.Clip`. */
+/** The clip fields a shape needs. Structurally typed over `OpenFlow.Clip`. */
 export interface FilledCell {
   t: number;
   s: number;
@@ -207,7 +207,7 @@ function ownerByScene(blocks: readonly SongBlock[]): Map<number, number> {
   return owner;
 }
 
-/** The scene fields a shape needs. Structurally typed over `BSV.Scene`. */
+/** The scene fields a shape needs. Structurally typed over `OpenFlow.Scene`. */
 export interface NamedScene {
   i: number;
   name: string;
@@ -389,6 +389,6 @@ export function mergeShapes(shapes: Iterable<TrackShape>): TrackShape {
 }
 
 /** Every song key in the set — what "collapse all" needs. */
-export function allSongKeys(model: BSV.SetModel): string[] {
+export function allSongKeys(model: OpenFlow.SetModel): string[] {
   return model.songs.map((s) => s.songKey);
 }

@@ -32,7 +32,7 @@
 // shape nobody anticipated fails loudly at definition time instead of quietly
 // at apply time.
 
-import { SONG_TAG_SHAPE } from './songTags.js';
+import { SONG_TAG_SHAPE } from './songTags.ts';
 
 /** What one token's values may look like. */
 export interface TokenSpec {

@@ -1,6 +1,6 @@
-import type { Derivation } from './derive.js';
-import { titleOps } from './sceneTitle.js';
-import type { SceneFields, SceneWriteOp } from './roles.js';
+import type { Derivation } from './derive.ts';
+import { titleOps } from './sceneTitle.ts';
+import type { SceneFields, SceneWriteOp } from './roles.ts';
 
 export interface DefaultArtistConflict {
   song: string;

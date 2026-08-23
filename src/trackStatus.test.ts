@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { formatBarsBeats, formatSecondsLeft, loopBars, trackStatus } from './trackStatus.js';
+import { formatBarsBeats, formatSecondsLeft, loopBars, trackStatus } from './trackStatus.ts';
 
-function clip(over: Partial<BSV.PlayingClip> = {}): BSV.PlayingClip {
+function clip(over: Partial<OpenFlow.PlayingClip> = {}): OpenFlow.PlayingClip {
   return {
     t: 0,
     position: 0,

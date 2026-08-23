@@ -47,7 +47,7 @@ function secondsFromBeats(beats: number, tempo: number): number {
  * `tempo` is Live's song tempo, needed only to put a one-shot's remaining beats
  * into seconds.
  */
-export function trackStatus(clip: BSV.PlayingClip, tempo: number): TrackStatus | null {
+export function trackStatus(clip: OpenFlow.PlayingClip, tempo: number): TrackStatus | null {
   const { position, loopStart, loopEnd } = clip;
   if (!isFinite(position) || !isFinite(loopStart) || !isFinite(loopEnd)) return null;
 
@@ -102,7 +102,7 @@ export function trackStatus(clip: BSV.PlayingClip, tempo: number): TrackStatus |
  * with no length, or **unwarped audio**, whose position Live reports in seconds
  * and which therefore has no bars to count however the signature reads.
  */
-export function loopBars(clip: BSV.PlayingClip): { bar: number; bars: number } | null {
+export function loopBars(clip: OpenFlow.PlayingClip): { bar: number; bars: number } | null {
   if (!clip.looping || clip.inSeconds) return null;
   const { position, loopStart, loopEnd } = clip;
   if (!isFinite(position) || !isFinite(loopStart) || !isFinite(loopEnd)) return null;

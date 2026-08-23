@@ -4,7 +4,7 @@ import {
   planSceneReorder,
   describeMove,
   type MoveRequest,
-} from './sceneMove.js';
+} from './sceneMove.ts';
 
 /** A set with no clips and no groups — enough to test the index arithmetic. */
 function req(over: Partial<MoveRequest> = {}): MoveRequest {

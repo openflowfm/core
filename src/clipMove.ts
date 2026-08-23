@@ -10,14 +10,14 @@
 // clips copied and originals still there, which is the recoverable direction.
 // Deletes therefore come last, all of them, after every copy has succeeded.
 
-/** The track fields the planner reads. Structurally typed over `BSV.Track`. */
+/** The track fields the planner reads. Structurally typed over `OpenFlow.Track`. */
 export interface ClipMoveTrack {
   i: number;
   isGroup: boolean;
   isMidi: boolean;
 }
 
-/** A clip's address. Structurally typed over `BSV.Clip`. */
+/** A clip's address. Structurally typed over `OpenFlow.Clip`. */
 export interface ClipAt {
   t: number;
   s: number;

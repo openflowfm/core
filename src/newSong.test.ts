@@ -4,7 +4,7 @@ import {
   newSongProblems,
   planNewSong,
   type NewSongDraft,
-} from './newSong.js';
+} from './newSong.ts';
 
 const PALETTE = [0x112233, 0xaabbcc];
 const BASE: NewSongDraft = {

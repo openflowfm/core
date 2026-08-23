@@ -5,7 +5,7 @@ import {
   inverseOps,
   type ClipFields,
   type ColoredClip,
-} from './ops.js';
+} from './ops.ts';
 
 const clip = (t: number, s: number, name: string, colorIndex: number): ClipFields => ({
   t,

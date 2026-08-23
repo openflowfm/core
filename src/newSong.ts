@@ -1,11 +1,11 @@
-import { MIN_TEMPO, songKey } from './derive.js';
+import { MIN_TEMPO, songKey } from './derive.ts';
 import {
   ARTIST_SEPARATOR,
   formatTitle,
   isBpm,
   isKey,
   splitsAsArtist,
-} from './sceneTitle.js';
+} from './sceneTitle.ts';
 
 /** The intentionally opinionated size of a newly scaffolded song. */
 export const NEW_SONG_SCENES = 8;
@@ -72,9 +72,9 @@ export function planNewSong(
   sceneCount: number,
   palette: readonly number[],
   existingSongs: readonly string[],
-): BSV.SceneAddition | null {
+): OpenFlow.SceneAddition | null {
   if (newSongProblems(draft, sceneCount, palette, existingSongs).length > 0) return null;
-  const addition: BSV.SceneAddition = {
+  const addition: OpenFlow.SceneAddition = {
     at: draft.at,
     count: NEW_SONG_SCENES,
     // The bpm goes in the name with everything else, and **`addition.tempo` is

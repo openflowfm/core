@@ -9,13 +9,13 @@ import {
   songKey,
   songsOfScenes,
   type SceneInput,
-} from './derive.js';
+} from './derive.ts';
 import {
   compilePattern,
   DEFAULT_SCENE_PATTERN,
   LEADING_TAG_SCENE_PATTERN,
   LEGACY_SCENE_PATTERN,
-} from './namePattern.js';
+} from './namePattern.ts';
 
 const PATTERN = compilePattern('{song} {bpm?} {key?} [{role?}]')!;
 

@@ -4,7 +4,7 @@
 // allows groups inside groups. Everything here walks that link rather than
 // inferring structure from track order, so nesting stays honest.
 //
-// Structurally typed rather than importing BSV.Track: this needs four fields,
+// Structurally typed rather than importing OpenFlow.Track: this needs four fields,
 // and keeping core free of the wire types is what lets it be tested without
 // any of the transport around it.
 
