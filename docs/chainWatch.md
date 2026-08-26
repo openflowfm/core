@@ -63,7 +63,7 @@ the observers behind it are gone. `rearmWatches` forces it.
 
 A device has no id on the wire, so a run is addressed by where it sits — the same bargain
 clips make with `(track, scene)`, and for the same reason. See
-[`ui/docs/device-chain.md`](../../ui/docs/device-chain.md).
+[`set/docs/device-chain.md`](../../set/docs/device-chain.md).
 
 `path` is empty for a track's own device list. Otherwise it is **pairs**: a run inside a
 rack is `devices M chains L`, and that chain's own `devices` is the run. `[2, 0]` is the

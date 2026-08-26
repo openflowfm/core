@@ -87,9 +87,9 @@ wedge further round than full.
 
 ## Where it's used
 
-`ui/src/hooks/useTrackStatus.ts` runs it per track per frame and stores the *result*, so a
+`set/src/hooks/useTrackStatus.ts` runs it per track per frame and stores the *result*, so a
 frame in which no pie visibly moved wakes no component. Nine numbers reduced to two or
 three is what makes that comparison cheap enough to do at 20 Hz. See
-[`ui/docs/mixer.md`](../../ui/docs/mixer.md) for the display, and
+[`set/docs/mixer.md`](../../set/docs/mixer.md) for the display, and
 [`bridge/docs/message-protocol.md`](../../bridge/docs/message-protocol.md) for how the
 facts get here.

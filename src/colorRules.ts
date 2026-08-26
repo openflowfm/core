@@ -1,6 +1,6 @@
 // Coloring every song in the set from a rule instead of a swatch at a time.
 //
-// **A song is one color** (see ui/README.md) — a solid band in Live's own
+// **A song is one color** (see set/README.md) — a solid band in Live's own
 // session view is what a hundred-song set is navigated by. Which color is
 // arbitrary song by song and not arbitrary across a set: colored by key, the
 // bands say what will mix into what; colored by bpm, they say where the set

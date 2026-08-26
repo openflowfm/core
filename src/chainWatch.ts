@@ -47,7 +47,7 @@ export interface ChainWatch {
 
 /**
  * Stable identity for a run. Two clients naming the same one must merge, and a
- * path is the only address a device has — see `ui/docs/device-chain.md`.
+ * path is the only address a device has — see `set/docs/device-chain.md`.
  */
 export function chainKey(w: ChainWatch): string {
   return w.t + ':' + w.path.join('.');

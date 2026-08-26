@@ -54,7 +54,7 @@ Two reasons this matters:
    backend, not the only one. Anything Live-specific that leaks in here has to be
    untangled later.
 
-If a function needs to know *how* data arrives, it belongs in `bridge/` or `ui/lib/`.
+If a function needs to know *how* data arrives, it belongs in `bridge/` or `set/lib/`.
 
 ## What belongs here next
 
