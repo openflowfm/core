@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "description": "Domain logic with no React, no transport and nothing Live-specific: the only code testable without Ableton running.",
+  "files": [
+    "src",
+    "docs"
+  ],
   "exports": {
     "./*": "./src/*"
   }
