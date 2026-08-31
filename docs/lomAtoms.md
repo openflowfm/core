@@ -1,7 +1,7 @@
 # `lomAtoms.ts`
 
 Deliberately duplicated from `bridge/src/lom.ts`. That file can't
-import anything (`module: "none"`), and this parsing is the part of the snapshot walk
+import anything (it compiles as a script, not a module), and this parsing is the part of the snapshot walk
 most likely to be wrong, so it lives here to be testable. `parseId(['id', 0]) === 0`
 is the occupancy test the entire slot scan hinges on.
 
