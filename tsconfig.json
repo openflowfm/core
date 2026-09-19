@@ -1,5 +1,5 @@
 {
-  "extends": "../tsconfig.base.json",
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "module": "ESNext",
     "moduleResolution": "Bundler",
@@ -8,5 +8,5 @@
     "types": ["node"],
     "lib": ["ES2022"]
   },
-  "include": ["src/**/*.ts", "../protocol/global.d.ts"]
+  "include": ["src/**/*.ts", "node_modules/@openflow/protocol/global.d.ts"]
 }
