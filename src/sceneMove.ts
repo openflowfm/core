@@ -326,3 +326,73 @@ export function describeMove(plan: SceneMovePlan): string {
   const clips = `${plan.clips} clip${plan.clips === 1 ? '' : 's'}`;
   return `${scenes} · ${clips} copied · ${plan.scenes} deleted`;
 }
+
+export interface KeepRequest {
+  /** Scenes in the set the plan is built against. */
+  sceneCount: number;
+  /**
+   * The scenes to keep, in the order they should end up. Distinct, each in
+   * `0 … sceneCount-1`, and not empty. Every scene not listed is deleted.
+   */
+  order: readonly number[];
+  clips: readonly MoveClipInput[];
+  tracks: readonly MoveTrackInput[];
+}
+
+/**
+ * A running order put in place with everything else deleted. `sceneCount`,
+ * `create`, `steps` and `remove` are the wire `OpenFlow.KeepPlan`; the client
+ * adds `sceneNames` from its snapshot before sending. The rest are for the UI.
+ */
+export interface SceneKeepPlan {
+  sceneCount: number;
+  /** Blank scenes to create, ascending. */
+  create: number[];
+  steps: SceneMoveStep[];
+  /**
+   * Post-insert indexes to delete, **descending**: the original of every moved
+   * scene, and every scene not kept. Dropped scenes are never copied.
+   */
+  remove: number[];
+  /** UI only: scenes left once the plan has run — `order.length`. */
+  keep: number;
+  /** Kept scenes that had to be copied to reach their place. */
+  moved: number;
+  /** Scenes deleted without being copied. */
+  dropped: number;
+  /** Clip copies the moved scenes cost. */
+  clips: number;
+}
+
+/**
+ * Put the scenes in `order` in that order and delete every other scene, as
+ * **one** plan — the generalisation of `planSceneReorder` to an order that
+ * covers only part of the set.
+ *
+ * `null` when there is nothing to do: `order` is the whole set, already in
+ * place. Throws on an `order` that is empty, repeats a scene or names one out
+ * of range — a caller bug, and a plan built from it would delete the wrong
+ * scenes.
+ *
+ * A returned plan guarantees what the bridge checks before running it:
+ * - `create` is strictly ascending.
+ * - `remove` is unique, strictly descending, and each index is in
+ *   `0 … sceneCount + create.length - 1`.
+ * - Every `steps[].to` is a created blank, and no `remove` index is a created
+ *   blank.
+ * - Every `steps[].from` is in `remove`.
+ * - `sceneCount + create.length - remove.length >= 1` (and equals `keep`).
+ *
+ * The bridge's last check, that `sceneNames` matches Live, is the client's to
+ * satisfy: it sends the names from the snapshot the plan was built against.
+ */
+export function planSceneKeep(req: KeepRequest): SceneKeepPlan | null {
+  void req;
+  throw new Error('planSceneKeep: not implemented');
+}
+
+/** What a keep plan costs, for the UI to say before it runs. */
+export function describeKeep(plan: SceneKeepPlan): string {
+  void plan;
+  throw new Error('describeKeep: not implemented');
+}
