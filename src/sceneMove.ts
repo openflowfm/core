@@ -255,13 +255,60 @@ export function planSceneReorder(req: ReorderRequest): SceneMovePlan | null {
   }
   if (n === 0 || order.every((s, i) => s === i)) return null;
 
+  const { create, steps, remove, moved, clips: clipCount } = rebuild(n, order, clips, tracks);
+
+  // A reorder's moved scenes are scattered, so unlike a move there's no single
+  // run to point at. These bound the span that changed — the first and last
+  // final position holding a scene that wasn't there before. Through a map
+  // rather than `indexOf` per scene, which is the same O(n²) that `occupied`
+  // exists to avoid.
+  const finalAt = new Map(order.map((s, i) => [s, i]));
+  const finals = moved.map((s) => finalAt.get(s)!);
+
+  return {
+    create,
+    steps,
+    remove,
+    finalFrom: Math.min(...finals),
+    finalTo: Math.max(...finals),
+    scenes: moved.length,
+    clips: clipCount,
+  };
+}
+
+/**
+ * The arithmetic shared by `planSceneReorder` and `planSceneKeep`: rebuild the
+ * set so the scenes in `order` stand in that order, and delete every original
+ * that isn't left standing. `order` is already validated — distinct, in range —
+ * and may cover the whole set (a reorder) or part of it (a keep).
+ *
+ * The scenes of `order`'s longest increasing subsequence are the **anchors**:
+ * already in the right relative order, they stay exactly where they are. Every
+ * other kept scene is copied into a blank, and every scene not in `order` is
+ * simply in `remove`, never copied.
+ */
+function rebuild(
+  sceneCount: number,
+  order: readonly number[],
+  clips: readonly MoveClipInput[],
+  tracks: readonly MoveTrackInput[],
+): {
+  create: number[];
+  steps: SceneMoveStep[];
+  remove: number[];
+  /** Kept scenes that are copied, in wanted order. */
+  moved: number[];
+  clips: number;
+} {
   const anchors = new Set(longestIncreasing(order).map((p) => order[p]!));
 
   // One walk down the wanted order. `base` is the pre-insert index the next
   // blank belongs at — directly after the last anchor passed, so that once the
   // originals are deleted the blank sits between that anchor and the next.
   // Anchors are met in ascending index order, so `base` never goes backwards and
-  // every blank index is larger than the last.
+  // every blank index is larger than the last. Scenes that aren't kept don't
+  // enter into it: they're deleted, so whichever side of a blank they sit on
+  // makes no difference to the order that's left.
   const create: number[] = [];
   const moved: Array<{ s: number; blank: number }> = [];
   let base = 0;
@@ -281,7 +328,7 @@ export function planSceneReorder(req: ReorderRequest): SceneMovePlan | null {
   // the positions left over, in order.
   const isBlank = new Set(create);
   const post = new Map<number, number>();
-  for (let p = 0, s = 0; p < n + create.length; p++) {
+  for (let p = 0, s = 0; p < sceneCount + create.length; p++) {
     if (!isBlank.has(p)) post.set(s++, p);
   }
 
@@ -294,25 +341,14 @@ export function planSceneReorder(req: ReorderRequest): SceneMovePlan | null {
     return { from: post.get(s)!, to: blank, tracks: trackList };
   });
 
-  const remove = moved.map((m) => post.get(m.s)!).sort((a, b) => b - a);
+  // Every original except the anchors goes: the moved scenes' originals, now
+  // copied, and the scenes that weren't kept at all. Built from `post`, so a
+  // created blank can never be named here.
+  const remove: number[] = [];
+  for (let s = 0; s < sceneCount; s++) if (!anchors.has(s)) remove.push(post.get(s)!);
+  remove.sort((a, b) => b - a);
 
-  // A reorder's moved scenes are scattered, so unlike a move there's no single
-  // run to point at. These bound the span that changed — the first and last
-  // final position holding a scene that wasn't there before. Through a map
-  // rather than `indexOf` per scene, which is the same O(n²) that `occupied`
-  // exists to avoid.
-  const finalAt = new Map(order.map((s, i) => [s, i]));
-  const finals = moved.map((m) => finalAt.get(m.s)!);
-
-  return {
-    create,
-    steps,
-    remove,
-    finalFrom: Math.min(...finals),
-    finalTo: Math.max(...finals),
-    scenes: moved.length,
-    clips: clipCount,
-  };
+  return { create, steps, remove, moved: moved.map((m) => m.s), clips: clipCount };
 }
 
 /**
@@ -387,12 +423,44 @@ export interface SceneKeepPlan {
  * satisfy: it sends the names from the snapshot the plan was built against.
  */
 export function planSceneKeep(req: KeepRequest): SceneKeepPlan | null {
-  void req;
-  throw new Error('planSceneKeep: not implemented');
+  const { sceneCount, order, clips, tracks } = req;
+
+  if (!Number.isInteger(sceneCount) || sceneCount < 1) {
+    throw new Error(`planSceneKeep: sceneCount must be a positive integer, got ${sceneCount}`);
+  }
+  if (order.length === 0) {
+    throw new Error('planSceneKeep: order must keep at least one scene');
+  }
+  const seen = new Set<number>();
+  for (const s of order) {
+    if (!Number.isInteger(s) || s < 0 || s >= sceneCount || seen.has(s)) {
+      throw new Error(
+        `planSceneKeep: order must list distinct scenes of the ${sceneCount}, got ${s}`,
+      );
+    }
+    seen.add(s);
+  }
+  if (order.length === sceneCount && order.every((s, i) => s === i)) return null;
+
+  const plan = rebuild(sceneCount, order, clips, tracks);
+  return {
+    sceneCount,
+    create: plan.create,
+    steps: plan.steps,
+    remove: plan.remove,
+    keep: order.length,
+    moved: plan.moved.length,
+    dropped: sceneCount - order.length,
+    clips: plan.clips,
+  };
 }
 
-/** What a keep plan costs, for the UI to say before it runs. */
+/**
+ * What a keep plan costs, for the UI to say before it runs — read like
+ * `describeMove`. "Deleted" counts the scenes that are gone afterwards, not the
+ * moved scenes' originals: those are deleted too, but the user sees them move.
+ */
 export function describeKeep(plan: SceneKeepPlan): string {
-  void plan;
-  throw new Error('describeKeep: not implemented');
+  const n = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
+  return `${n(plan.moved, 'scene')} moved · ${n(plan.clips, 'clip')} copied · ${n(plan.dropped, 'scene')} deleted`;
 }
