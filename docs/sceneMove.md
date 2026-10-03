@@ -58,3 +58,51 @@ ascending and as many deletions as creations.
 An order that isn't a permutation of the set **throws**. It can only be our own bug, and a
 plan built from a half-correct order would delete scenes it never copied. The UI catches
 it rather than letting it land mid-render.
+
+## `planSceneKeep`
+
+The new-show workflow asks a third question: **"tonight is these songs, in this order —
+and nothing else."** The user types the running order, reorders it, and commits; the kept
+scenes go into that order and every other scene in the set is deleted, as one plan sent as
+one bridge message (`keepScenes`, carrying `OpenFlow.KeepPlan`). This is the plan that
+deletes the most, routinely most of the set, so it is the one where the arithmetic matters
+most.
+
+It is `planSceneReorder` with an order that covers only part of the set, and it runs on
+the same code: both call one private `rebuild`, so a fix to one is a fix to both and a
+test of the reorder exercises the keep. The anchors are still the longest increasing
+subsequence of the order, and they still stay exactly where they are. The other kept
+scenes are copied into blanks placed after the anchor they follow. **Dropped scenes are
+deleted and never copied** — copying a scene only to delete both copies would be the most
+expensive way to do nothing. Whichever side of a blank a dropped scene happens to sit on
+makes no difference, because it isn't there afterwards.
+
+So `remove` is every original that isn't an anchor: the moved scenes' originals and the
+dropped scenes together, in post-insert numbering, descending, built from the same merge
+that places the originals around the blanks, so it can never name a created blank. That
+is also why `keep === sceneCount + create.length - remove.length` holds by construction:
+each moved scene adds one blank and removes one original, each dropped scene removes one
+original, and what's left is `order.length`.
+
+A plan the bridge receives has to pass the bridge's own checks before anything runs —
+blanks strictly ascending, deletes unique and strictly descending and in range, every copy
+landing in a blank, every copy's source in `remove`, at least one scene left. The planner
+guarantees all of them, and the bridge checking again is the point: a plan that slips
+through deletes scenes.
+
+`null` means only one thing: the order is the whole set, already in place. Keeping every
+scene in place but dropping one is not nothing — it's a deletion — so it gets a plan with
+no blanks and no copies. An order that is empty, repeats a scene, or names one out of
+range **throws**, for the same reason as the reorder.
+
+The test is the reorder's replay widened to match: **every ordering of every subset of a
+set of up to six scenes** — 2,365 of them — has to replay (create, then copy, then the
+descending deletes) to exactly the kept scenes in the kept order, and each plan has to
+pass every check above, copy only kept scenes, and move exactly `order.length` minus the
+longest increasing subsequence — checked against a second, quadratic implementation of it.
+Over full permutations it must also agree step for step with `planSceneReorder`.
+
+`describeKeep` says what the commit costs in the same voice as `describeMove`:
+`3 scenes moved · 42 clips copied · 18 scenes deleted`. "Deleted" counts the scenes that
+are gone afterwards, not the originals of the moved ones — those are deleted too, but what
+the user sees is a scene that moved.

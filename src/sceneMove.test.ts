@@ -3,7 +3,13 @@ import {
   planSceneMove,
   planSceneReorder,
   describeMove,
+  planSceneKeep,
+  describeKeep,
   type MoveRequest,
+  type MoveClipInput,
+  type MoveTrackInput,
+  type SceneKeepPlan,
+  type SceneMovePlan,
 } from './sceneMove.ts';
 
 /** A set with no clips and no groups — enough to test the index arithmetic. */
@@ -28,7 +34,10 @@ function req(over: Partial<MoveRequest> = {}): MoveRequest {
  * the set ends up in the right order — which is the thing that can't be undone
  * if it's wrong.
  */
-function replay(plan: ReturnType<typeof planSceneMove>, sceneCount: number) {
+function replay(
+  plan: Pick<SceneMovePlan, 'create' | 'steps' | 'remove'> | null,
+  sceneCount: number,
+) {
   if (!plan) throw new Error('expected a plan');
   const set: Array<number | null> = Array.from({ length: sceneCount }, (_, i) => i);
   for (const at of plan.create) set.splice(at, 0, null);
@@ -293,5 +302,198 @@ describe('describeMove', () => {
   it('says "1 scene", not "1 scenes"', () => {
     const plan = planSceneMove(req({ sources: [0], dest: 5 }))!;
     expect(describeMove(plan)).toBe('1 scene · 0 clips copied · 1 deleted');
+  });
+});
+
+/** Every ordering of every non-empty subset of `0 … n-1`. */
+function arrangements(n: number): number[][] {
+  const out: number[][] = [];
+  for (let mask = 1; mask < 1 << n; mask++) {
+    const subset: number[] = [];
+    for (let i = 0; i < n; i++) if (mask & (1 << i)) subset.push(i);
+    for (const p of permutations(subset.length)) out.push(p.map((k) => subset[k]!));
+  }
+  return out;
+}
+
+/**
+ * Length of a longest increasing subsequence, the plain quadratic way — a
+ * second implementation to hold the planner's patience sort to.
+ */
+function lisLength(values: readonly number[]): number {
+  const best = values.map(() => 1);
+  for (let i = 0; i < values.length; i++) {
+    for (let j = 0; j < i; j++) {
+      if (values[j]! < values[i]!) best[i] = Math.max(best[i]!, best[j]! + 1);
+    }
+  }
+  return Math.max(0, ...best);
+}
+
+/**
+ * Everything the bridge checks before running a keep plan, plus what the plan
+ * promises the UI. Separate from the replay: the replay proves the result,
+ * this proves the plan is one the bridge will accept.
+ */
+function expectKeepInvariants(plan: SceneKeepPlan, sceneCount: number, order: number[]) {
+  const { create, steps, remove } = plan;
+  const total = sceneCount + create.length;
+
+  expect(plan.sceneCount).toBe(sceneCount);
+  for (let k = 1; k < create.length; k++) expect(create[k]).toBeGreaterThan(create[k - 1]!);
+  for (let k = 1; k < remove.length; k++) expect(remove[k]).toBeLessThan(remove[k - 1]!);
+  for (const r of remove) {
+    expect(r).toBeGreaterThanOrEqual(0);
+    expect(r).toBeLessThan(total);
+  }
+
+  const blanks = new Set(create);
+  const removed = new Set(remove);
+  for (const r of remove) expect(blanks.has(r)).toBe(false);
+  for (const s of steps) {
+    expect(blanks.has(s.to)).toBe(true);
+    expect(removed.has(s.from)).toBe(true);
+  }
+  // One copy per blank: no blank left empty, none written twice.
+  expect(steps.map((s) => s.to).sort((a, b) => a - b)).toEqual(create);
+
+  // A dropped scene is deleted, never copied: every copy reads a kept scene.
+  const model: Array<number | null> = Array.from({ length: sceneCount }, (_, i) => i);
+  for (const at of create) model.splice(at, 0, null);
+  const kept = new Set(order);
+  for (const s of steps) expect(kept.has(model[s.from] as number)).toBe(true);
+
+  expect(plan.keep).toBe(order.length);
+  expect(plan.keep).toBe(sceneCount + create.length - remove.length);
+  expect(plan.moved).toBe(steps.length);
+  expect(plan.dropped).toBe(sceneCount - order.length);
+  // The longest already-ordered run stays put; only the rest is copied.
+  expect(plan.moved).toBe(order.length - lisLength(order));
+}
+
+describe('planSceneKeep', () => {
+  const keep = (
+    sceneCount: number,
+    order: number[],
+    over: Partial<{ clips: MoveClipInput[]; tracks: MoveTrackInput[] }> = {},
+  ) => planSceneKeep({ sceneCount, order, clips: [], tracks: [{ i: 0, isGroup: false }], ...over });
+
+  it('returns null only when the whole set is kept, already in place', () => {
+    // Committing tonight's show when it *is* the set must not rebuild it.
+    expect(keep(1, [0])).toBeNull();
+    expect(keep(5, [0, 1, 2, 3, 4])).toBeNull();
+    // Kept in place but with a scene dropped is real work: a deletion.
+    expect(keep(5, [0, 1, 2, 3])).not.toBeNull();
+  });
+
+  it('deletes dropped scenes without copying anything when the rest is in order', () => {
+    const plan = keep(6, [0, 2, 5])!;
+    expect(plan.create).toEqual([]);
+    expect(plan.steps).toEqual([]);
+    expect(plan.remove).toEqual([4, 3, 1]);
+    expect(replay(plan, 6)).toEqual([0, 2, 5]);
+    expect(describeKeep(plan)).toBe('0 scenes moved · 0 clips copied · 3 scenes deleted');
+  });
+
+  it('refuses an order it could only get wrong', () => {
+    // Each of these would build a plan that deletes scenes it shouldn't. Loud,
+    // because only our own code can produce them.
+    expect(() => keep(5, [])).toThrow(/at least one/);
+    expect(() => keep(5, [0, 1, 1])).toThrow(/distinct/);
+    expect(() => keep(5, [0, 5])).toThrow(/distinct/);
+    expect(() => keep(5, [-1])).toThrow(/distinct/);
+    expect(() => keep(5, [0, 2.5])).toThrow(/distinct/);
+    expect(() => keep(0, [0])).toThrow(/sceneCount/);
+    expect(() => keep(2.5, [0])).toThrow(/sceneCount/);
+  });
+
+  it('replays to exactly the order kept, over every subset in every order', () => {
+    // The whole proof: for every ordering of every subset of a set of up to six
+    // scenes — 2,365 of them across the sizes — replaying create, then copy,
+    // then the descending deletes leaves exactly `order`'s scenes, in order,
+    // and the plan passes every check the bridge makes before running it.
+    let cases = 0;
+    for (let n = 1; n <= 6; n++) {
+      for (const order of arrangements(n)) {
+        cases++;
+        const plan = keep(n, order);
+        if (!plan) {
+          expect(order).toEqual(Array.from({ length: n }, (_, i) => i));
+          continue;
+        }
+        expect(replay(plan, n)).toEqual(order);
+        expectKeepInvariants(plan, n, order);
+      }
+    }
+    expect(cases).toBe(2365);
+  });
+
+  it('agrees with planSceneReorder when every scene is kept', () => {
+    // Same arithmetic: a keep of the whole set is a reorder, step for step.
+    for (const order of permutations(5)) {
+      const reorder = planSceneReorder({ order, clips: [], tracks: [] });
+      const plan = planSceneKeep({ sceneCount: 5, order, clips: [], tracks: [] });
+      if (!reorder) {
+        expect(plan).toBeNull();
+        continue;
+      }
+      expect(plan!.create).toEqual(reorder.create);
+      expect(plan!.steps).toEqual(reorder.steps);
+      expect(plan!.remove).toEqual(reorder.remove);
+    }
+  });
+
+  it('leaves the kept scenes that are already in order where they are', () => {
+    // Tonight is 9, 2, 4, 7 out of twenty: 2, 4 and 7 are already in order, so
+    // only 9 is copied, and the other sixteen go without being touched.
+    const plan = keep(20, [9, 2, 4, 7])!;
+    expect(plan.moved).toBe(1);
+    expect(plan.dropped).toBe(16);
+    expect(plan.create).toHaveLength(1);
+    expect(plan.remove).toHaveLength(17);
+    expect(replay(plan, 20)).toEqual([9, 2, 4, 7]);
+  });
+
+  it('counts the clips it copies, and never from a dropped scene or a group track', () => {
+    const plan = keep(4, [2, 0], {
+      tracks: [
+        { i: 0, isGroup: true },
+        { i: 1, isGroup: false },
+        { i: 2, isGroup: false },
+      ],
+      clips: [
+        { t: 0, s: 2 }, // a group slot — duplicate_clip_to raises on one
+        { t: 1, s: 2 },
+        { t: 2, s: 2 },
+        { t: 1, s: 0 }, // a kept scene that stays put
+        { t: 1, s: 3 }, // a dropped scene — deleted, never copied
+        { t: 2, s: 3 },
+      ],
+    })!;
+    expect(plan.steps).toHaveLength(1);
+    expect(plan.steps[0]!.tracks).toEqual([1, 2]);
+    expect(plan.clips).toBe(2);
+    expect(replay(plan, 4)).toEqual([2, 0]);
+  });
+});
+
+describe('describeKeep', () => {
+  const plan = (moved: number, clips: number, dropped: number): SceneKeepPlan => ({
+    sceneCount: 0,
+    create: [],
+    steps: [],
+    remove: [],
+    keep: 0,
+    moved,
+    dropped,
+    clips,
+  });
+
+  it('reads like describeMove', () => {
+    expect(describeKeep(plan(3, 42, 18))).toBe('3 scenes moved · 42 clips copied · 18 scenes deleted');
+  });
+
+  it('says "1 scene" and "1 clip", not "1 scenes" and "1 clips"', () => {
+    expect(describeKeep(plan(1, 1, 1))).toBe('1 scene moved · 1 clip copied · 1 scene deleted');
   });
 });
