@@ -1,3 +1,4 @@
+/// <reference types="@openflow/protocol/global.d.ts" preserve="true" />
 // Assembling and reversing clip writes.
 //
 // The LOM gives us no undo — writes through it don't participate reliably in
