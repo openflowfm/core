@@ -340,8 +340,9 @@ export interface KeepRequest {
 }
 
 /**
- * A running order put in place with everything else deleted. The first five
- * fields are `OpenFlow.KeepPlan` and travel as-is; the rest are for the UI.
+ * A running order put in place with everything else deleted. `sceneCount`,
+ * `create`, `steps` and `remove` are the wire `OpenFlow.KeepPlan`; the client
+ * adds `sceneNames` from its snapshot before sending. The rest are for the UI.
  */
 export interface SceneKeepPlan {
   sceneCount: number;
@@ -353,7 +354,7 @@ export interface SceneKeepPlan {
    * scene, and every scene not kept. Dropped scenes are never copied.
    */
   remove: number[];
-  /** Scenes left once the plan has run — `order.length`. */
+  /** UI only: scenes left once the plan has run — `order.length`. */
   keep: number;
   /** Kept scenes that had to be copied to reach their place. */
   moved: number;
@@ -372,6 +373,18 @@ export interface SceneKeepPlan {
  * place. Throws on an `order` that is empty, repeats a scene or names one out
  * of range — a caller bug, and a plan built from it would delete the wrong
  * scenes.
+ *
+ * A returned plan guarantees what the bridge checks before running it:
+ * - `create` is strictly ascending.
+ * - `remove` is unique, strictly descending, and each index is in
+ *   `0 … sceneCount + create.length - 1`.
+ * - Every `steps[].to` is a created blank, and no `remove` index is a created
+ *   blank.
+ * - Every `steps[].from` is in `remove`.
+ * - `sceneCount + create.length - remove.length >= 1` (and equals `keep`).
+ *
+ * The bridge's last check, that `sceneNames` matches Live, is the client's to
+ * satisfy: it sends the names from the snapshot the plan was built against.
  */
 export function planSceneKeep(req: KeepRequest): SceneKeepPlan | null {
   void req;
