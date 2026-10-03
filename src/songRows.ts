@@ -1,3 +1,4 @@
+/// <reference types="@openflow/protocol/global.d.ts" preserve="true" />
 // Songs as rows in the grid: where the headers go, and what a collapsed song
 // hides. The row-wise mirror of `trackColumns.ts`, and deliberately shaped like
 // it — one collapses columns into a group header, this collapses rows into a

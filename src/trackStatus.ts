@@ -1,3 +1,4 @@
+/// <reference types="@openflow/protocol/global.d.ts" preserve="true" />
 // What a track's status display shows, from the clip currently playing in it.
 //
 // Live's own Session mixer draws one of these under every track, and the help

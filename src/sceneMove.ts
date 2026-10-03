@@ -1,3 +1,4 @@
+/// <reference types="@openflow/protocol/global.d.ts" preserve="true" />
 // Moving a run of scenes to somewhere else in the set.
 //
 // The LOM has no scene-move call — verified against both Cycling '74's reference
