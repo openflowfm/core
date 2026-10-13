@@ -26,17 +26,18 @@ in `docs/X.md`, and you can go straight there.
 
 ## Checks
 
-Run `npm ci` once per worktree. Each check is quick; run each once, in this order,
-after your last edit. CI (`.github/workflows/ci.yml`) runs the same list on every push
-and PR. There is no watcher.
+Run `npm ci` once per worktree. A change runs only `npm run build` and
+`npm run typecheck`. The rest runs in a test pass (when asked, or before a PR, each check
+once) and on CI (`.github/workflows/ci.yml`, every push and PR). Tests are written to a
+spec as their own step, not as part of a change. There is no watcher.
 
 | Command | What it checks | When to run |
 | --- | --- | --- |
-| `npm run typecheck` | `src/` compiles, tests included (no emit) | Any `.ts` change |
-| `npm test` | The unit tests (`src/**/*.test.ts`, vitest). CI runs `npm run test:coverage`, the same tests with coverage | Any `src/` change |
-| `npm run build` | Emits `dist/*.js` and `dist/*.d.ts` from `src/` (tests excluded) | Before `npm run test:package` or `npm pack`; after changing exports, `tsconfig.build.json` or adding a module |
-| `npm run test:package` | Type-level and runtime consumer checks against `dist/` through the exports map (`test/`) | Any change to `package.json` exports, the build, or which modules use `OpenFlow.*`; needs `npm run build` first |
-| `npm pack --dry-run` | The tarball holds only `dist/`, `docs/`, README, LICENSE, `package.json` | Any change to `files`, `exports` or the build |
+| `npm run typecheck` | `src/` compiles, tests included (no emit) | After any change |
+| `npm run build` | Emits `dist/*.js` and `dist/*.d.ts` from `src/` (tests excluded) | After any change; before `npm run test:package` or `npm pack` |
+| `npm test` | The unit tests (`src/**/*.test.ts`, vitest). CI runs `npm run test:coverage`, the same tests with coverage | Test pass and CI |
+| `npm run test:package` | Type-level and runtime consumer checks against `dist/` through the exports map (`test/`) | Test pass when `package.json` exports, the build, or which modules use `OpenFlow.*` changed, and CI; needs `npm run build` first |
+| `npm pack --dry-run` | The tarball holds only `dist/`, `docs/`, README, LICENSE, `package.json` | Test pass when `files`, `exports` or the build changed, and CI |
 
 ## Releasing
 
@@ -46,8 +47,8 @@ Renovate opens their update PRs. See README > Releasing.
 - **Versioning below 1.0:** a breaking change takes a **minor** bump, a feature or a
   fix a **patch** bump. No prereleases during 0.x. 1.0.0 is the first release for
   other people.
-- Changing what consumers get (behaviour, types, exports, files) needs a changeset:
-  `npx changeset`, pick the bump by the rule above, commit the file under
+- Changing what consumers get (behaviour, types, exports, files) needs a changeset,
+  once per PR (not per change): `npx changeset`, pick the bump by the rule above, commit the file under
   `.changeset/`.
 - Never run `npm publish` or bump `version` by hand. The Release workflow does both.
 - `RENOVATE_DISPATCH_TOKEN` and the `renovate` dispatch event type are a shared
