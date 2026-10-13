@@ -18,7 +18,9 @@ in `docs/X.md`, and you can go straight there.
 - A change to how something works updates its `docs/X.md` in the same commit. A doc that
   drifts is worse than none, because it's believed.
 
-Run `npm ci`, `npm run typecheck` and `npm test`. Consumers pin this package by commit:
+Run `npm ci` once in a fresh clone. After a change, run only `npm run typecheck`. `npm test`
+runs in a test pass (when asked, or before a PR) and on CI; tests are written to a spec as
+their own step, not as part of a change. Consumers pin this package by commit:
 after pushing, update the pin in each consumer's `package.json` and lock.
 
 Every agent commit must end with a blank line and a GitHub-compatible co-author trailer
