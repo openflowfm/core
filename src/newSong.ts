@@ -1,3 +1,4 @@
+/// <reference types="@openflow/protocol/global.d.ts" preserve="true" />
 import { MIN_TEMPO, songKey } from './derive.ts';
 import {
   ARTIST_SEPARATOR,

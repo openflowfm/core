@@ -1,3 +1,4 @@
+/// <reference types="@openflow/protocol/global.d.ts" preserve="true" />
 // Dragging clips to another place in the grid.
 //
 // A drag is a **rigid translation**: every clip picked up moves by the same

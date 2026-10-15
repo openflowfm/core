@@ -1,3 +1,4 @@
+/// <reference types="@openflow/protocol/global.d.ts" preserve="true" />
 // Roles — what a scene is *for*: intro, verse, chorus, jam.
 //
 // A role is stored in the scene's own name, as a bracketed tag at the front:

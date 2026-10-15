@@ -1,3 +1,4 @@
+/// <reference types="@openflow/protocol/global.d.ts" preserve="true" />
 // The set as this app understands it, built once.
 //
 // `derive()` reads the mapping back out of the scene names; this packages that

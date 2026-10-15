@@ -1,0 +1,59 @@
+name: Release
+on:
+  push:
+    branches: [main]
+
+# One release run at a time; a newer push to main waits rather than racing.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # commit the version bump, push tags
+      pull-requests: write # open the "Version packages" PR
+      id-token: write # npm trusted publishing (OIDC) and provenance
+    env:
+      # A step's `if` can't read secrets directly; expose presence only.
+      HAS_RENOVATE_DISPATCH_TOKEN: ${{ secrets.RENOVATE_DISPATCH_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm test
+      - run: npm run test:package
+
+      # With pending changesets: opens or updates the "Version packages" PR.
+      # With none (that PR just merged): publishes whatever version is not yet
+      # on npm. No NPM_TOKEN: npm authenticates through the trusted publisher.
+      - id: changesets
+        uses: changesets/action@v2
+        env:
+          # Provenance only in CI; a hand publish from a laptop can't sign.
+          NPM_CONFIG_PROVENANCE: "true"
+        with:
+          publish-script: npm run release
+          commit-message: Version packages
+          pr-title: Version packages
+          create-github-releases: true
+
+      # Tell openflowfm/renovate to run now instead of on its schedule.
+      # Shared contract with that repo: event_type `renovate`, secret
+      # RENOVATE_DISPATCH_TOKEN. Skipped (not failed) when the secret is unset.
+      - name: Notify Renovate
+        if: steps.changesets.outputs.published == 'true' && env.HAS_RENOVATE_DISPATCH_TOKEN == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.RENOVATE_DISPATCH_TOKEN }}
+          PUBLISHED: ${{ steps.changesets.outputs.published-packages }}
+        run: |
+          jq -n --arg repo "$GITHUB_REPOSITORY" --argjson packages "$PUBLISHED" \
+            '{event_type: "renovate", client_payload: {repository: $repo, packages: $packages}}' \
+          | gh api repos/openflowfm/renovate/dispatches --method POST --input -

@@ -1,33 +1,51 @@
 {
   "name": "@openflow/core",
   "version": "0.1.0-rc.4",
-  "private": true,
   "type": "module",
   "description": "Domain logic with no React, no transport and nothing Live-specific: the only code testable without Ableton running.",
   "files": [
-    "src",
+    "dist",
     "docs"
   ],
+  "types": "./dist/index.d.ts",
   "exports": {
-    "./*": "./src/*"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./*.ts": {
+      "types": "./dist/*.d.ts",
+      "default": "./dist/*.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/openflowfm/core.git"
   },
+  "homepage": "https://github.com/openflowfm/core#readme",
+  "bugs": "https://github.com/openflowfm/core/issues",
   "license": "MIT",
   "engines": {
     "node": ">=26"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:package": "tsc -p test/tsconfig.json && node --test \"test/*.test.ts\"",
+    "prepack": "npm run build",
+    "release": "changeset publish"
   },
   "dependencies": {
-    "@openflow/protocol": "github:openflowfm/protocol#918e52b61afcc9945d433a445557a3043e532af1"
+    "@openflow/protocol": "^0.1.0"
   },
   "devDependencies": {
+    "@changesets/cli": "^3.0.3",
     "@types/node": "^26.4.1",
     "@vitest/coverage-v8": "5.0.0",
     "typescript": "^7.0.2",

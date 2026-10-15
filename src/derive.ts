@@ -1,3 +1,4 @@
+/// <reference types="@openflow/protocol/global.d.ts" preserve="true" />
 // Reading the mapping back out of the set.
 //
 // This is the half of the scheme that means nothing has to be stored on the

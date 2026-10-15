@@ -1,3 +1,4 @@
+/// <reference types="@openflow/protocol/global.d.ts" preserve="true" />
 // Turning Live's flat track list into grid columns and group headers.
 //
 // Live stores group membership as a parent link per track, not as a tree, and
